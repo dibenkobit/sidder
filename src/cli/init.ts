@@ -12,6 +12,17 @@ import { style } from './format.ts';
 
 type Flavour = 'drizzle' | 'pg';
 
+/**
+ * The one line in the generated config that is a guess rather than a default.
+ *
+ * sowme does not go looking for your database module: a path found by scanning is right
+ * often enough to be trusted and wrong often enough to send you chasing an undefined
+ * `pool` instead of a missing file, which is the worse of the two failures. So it writes
+ * a placeholder that says so in the file, says so again in the message, and leaves
+ * `ModuleResolutionError` to say it a third time if you run before editing it.
+ */
+const PLACEHOLDER = './src/db/index.ts';
+
 export function runInit(cwd: string, force: boolean): { path: string; message: string } {
   const path = resolve(cwd, 'sowme.config.ts');
 
@@ -30,8 +41,8 @@ export function runInit(cwd: string, force: boolean): { path: string; message: s
     message: [
       `${style.green('wrote')} sowme.config.ts ${style.dim(`(${flavour} — ${evidence})`)}`,
       '',
-      'Next, edit the import so it points at the database instance you already have,',
-      'then write a seed:',
+      `Next, point the ${style.bold(PLACEHOLDER)} import at the database handle you already have.`,
+      'That path is a placeholder, not somewhere sowme looked. Then write a seed:',
       '',
       style.dim('  // seeds/roles.ts'),
       style.dim("  import { defineSeed } from 'sowme';"),
@@ -69,8 +80,9 @@ const TEMPLATES: Record<Flavour, string> = {
   drizzle: `import { defineConfig } from 'sowme';
 import { drizzleAdapter } from 'sowme/adapters/drizzle';
 
-// Point this at the Drizzle instance you already have.
-import { db } from './src/db/index.ts';
+// Placeholder: point this at the Drizzle instance you already have. Keep the file
+// extension — sowme imports this file with your runtime, and Node's resolver needs it.
+import { db } from '${PLACEHOLDER}';
 
 export default defineConfig({
   adapter: drizzleAdapter(db),
@@ -83,8 +95,9 @@ export default defineConfig({
   pg: `import { defineConfig } from 'sowme';
 import { pgAdapter } from 'sowme/adapters/pg';
 
-// Point this at the Pool you already have.
-import { pool } from './src/db/index.ts';
+// Placeholder: point this at the Pool you already have. Keep the file extension —
+// sowme imports this file with your runtime, and Node's resolver needs it.
+import { pool } from '${PLACEHOLDER}';
 
 export default defineConfig({
   adapter: pgAdapter(pool),

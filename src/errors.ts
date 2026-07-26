@@ -1,4 +1,6 @@
+import { basename, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { displayPath } from './config.ts';
 
 /**
  * Every way sowme can refuse to run, in one file.
@@ -171,8 +173,203 @@ export class ModuleSyntaxError extends SowmeError {
   }
 }
 
+/**
+ * An import did not resolve. The file sowme asked for was found; something it imports
+ * is not where the import says it is.
+ *
+ * Every new project meets this one: the import of your database handle that `sowme init`
+ * writes into the config is a placeholder, wrong until you fix it. Raw, the runtime
+ * reports that as two absolute paths and an error code, and never mentions that the line
+ * it is complaining about is the line `sowme init` told you to edit.
+ *
+ * The specifier and the file that imports it are the only two facts worth printing, and
+ * they pick the hint. The config's own db import, an import inside a seed, a package that
+ * is not installed and a directory where the resolver wants a file are four mistakes with
+ * four different fixes; one hint covering all of them would cover none of them.
+ */
+export class ModuleResolutionError extends SowmeError {
+  constructor(file: string, cause: unknown) {
+    const failure = resolutionOf(cause);
+
+    super(headlineFor(file, failure), adviceFor(file, failure, cause));
+    this.name = 'ModuleResolutionError';
+  }
+}
+
+/** What a resolution failure is about, once dug out of the runtime's prose. */
+interface Resolution {
+  /** As the resolver reported it: Bun keeps what you typed, Node resolves it first. */
+  specifier: string;
+  /** The file the failing import is written in — rarely the file sowme asked for. */
+  importer: string;
+  /** The path is a directory and the resolver wants a file. Node only; Bun resolves these. */
+  directory: boolean;
+}
+
+function headlineFor(file: string, failure: Resolution | null): string {
+  if (failure === null) return `Could not resolve a module imported by ${displayPath(file)}`;
+  return `Could not resolve "${shownSpecifier(failure.specifier)}" — imported by ${displayPath(failure.importer)}`;
+}
+
+function adviceFor(file: string, failure: Resolution | null, cause: unknown): string {
+  if (failure === null) {
+    return [
+      "Check that file's imports — one of them does not point at anything. The runtime",
+      'described which one in a shape sowme does not recognise, so here it is verbatim:',
+      '',
+      `  ${describe(cause)}`,
+    ].join('\n');
+  }
+
+  return [
+    // The same demotion ModuleSyntaxError does: the file holding the bad import is
+    // rarely the file sowme asked for, so the one it asked for becomes a footnote.
+    ...(failure.importer === file ? [] : [`Reached while importing ${displayPath(file)}.`, '']),
+    ...adviceLines(failure),
+  ].join('\n');
+}
+
+function adviceLines({ specifier, importer, directory }: Resolution): string[] {
+  const shown = shownSpecifier(specifier);
+
+  if (directory) {
+    // The suggestion is a path, not text to paste: the import is written relative to the
+    // importing file, and what Node handed back is relative to nothing.
+    return [
+      `That is a directory, and Node's ESM resolver does not look inside one for an index`,
+      'file the way a bundler does. Name the file in the import, relative to the importing',
+      `file: ${shown}/index.ts is the usual candidate.`,
+    ];
+  }
+
+  if (isBareSpecifier(specifier)) {
+    const aPackage = ['  A package — install it where the importing file can see it.'];
+    const anAlias = [
+      "  An alias — sowme imports with the runtime it was launched with, and Node's type",
+      '  stripping does not read tsconfig paths. Bun does (`bun --bun sowme run`), and a',
+      '  relative path works under both.',
+    ];
+    // `@/db` has no scope name, so it cannot be a package: npm has no such thing. When the
+    // specifier is shaped like an alias, that reading goes first.
+    const readings = looksLikeAlias(specifier)
+      ? [...anAlias, ...aPackage]
+      : [...aPackage, ...anAlias];
+
+    return [
+      `${shown} is not a path, so it is a package name or a tsconfig path alias.`,
+      ...readings,
+    ];
+  }
+
+  if (isConfigFile(importer)) {
+    return [
+      "That is the config's import of your database handle. `sowme init` writes it as a",
+      'placeholder — a guess at your layout, not something it read — so it stays wrong until',
+      'you point it at the module that really exports it.',
+      '',
+      'The path is resolved from the config file, and resolved literally: name the file with',
+      'its extension (`./src/db/client.ts`), not the directory (`./src/db`).',
+    ];
+  }
+
+  return [
+    'Nothing is at that path. It is resolved from the importing file, and resolved literally:',
+    'name the file with its extension (`./schema.ts`, not `./schema`) — Node needs it even',
+    'where your tsconfig lets you leave it out.',
+  ];
+}
+
+/**
+ * Digs the specifier and the importing file out of a resolution failure.
+ *
+ * Both facts live in the message and nowhere portable: Node puts the unresolved specifier
+ * on `error.url` but never the importer, and Bun's `specifier`/`referrer` fields are Bun's
+ * alone. So this parses prose, which means a runtime release could invalidate it — when
+ * that happens it returns null and the caller quotes the runtime verbatim instead of
+ * inventing facts. The shapes it knows, verbatim:
+ *
+ *   Node ESM  Cannot find module '/abs/db.ts' imported from /abs/sowme.config.ts
+ *   Node ESM  Cannot find package 'pg' imported from /abs/sowme.config.ts
+ *   Node ESM  Directory import '/abs/db' is not supported resolving ES modules imported from /abs/x.ts
+ *   Node CJS  Cannot find module './db.js'\nRequire stack:\n- /abs/sowme.config.js
+ *   Bun       Cannot find module './db.ts' from '/abs/sowme.config.ts'
+ */
+function resolutionOf(cause: unknown): Resolution | null {
+  const message = describe(cause);
+  const found = NOT_FOUND.exec(message);
+  const directory = DIRECTORY_IMPORT.exec(message);
+
+  const specifier = (found ?? directory)?.[1];
+  if (specifier === undefined) return null;
+
+  for (const pattern of IMPORTERS) {
+    const importer = pattern.exec(message)?.[1];
+    if (importer !== undefined) {
+      return {
+        specifier: asPath(specifier),
+        importer: asPath(importer),
+        directory: directory !== null,
+      };
+    }
+  }
+
+  // Both facts or neither: an importer sowme cannot name turns every hint into a guess,
+  // since which of them applies depends on where the failing import is written.
+  return null;
+}
+
+// Searched for rather than anchored, so a runtime or loader that prefixes the message
+// with something of its own does not cost us both facts.
+const NOT_FOUND = /Cannot find (?:module|package) '([^']+)'/;
+const DIRECTORY_IMPORT = /Directory import '([^']+)'/;
+const IMPORTERS = [
+  / imported from (.+)$/, // Node, ESM
+  / from '(.+)'$/, // Bun
+  /\nRequire stack:\n- (.+)/, // Node, a require() inside a CommonJS config
+];
+
+/**
+ * The text a thrown thing carries.
+ *
+ * `message` is read structurally rather than behind an `instanceof Error` check because
+ * Bun's resolver throws a `ResolveMessage`, which has a perfectly good `message` and does
+ * not inherit from `Error` at all — `String()` on it prepends the class name.
+ */
 function describe(cause: unknown): string {
-  return cause instanceof Error ? cause.message : String(cause);
+  const message = (cause as { message?: unknown } | null)?.message;
+  return typeof message === 'string' ? message : String(cause);
+}
+
+/** Some resolvers name files by URL, and a URL through `relative()` comes out as nonsense. */
+function asPath(value: string): string {
+  if (!value.startsWith('file://')) return value;
+  try {
+    return fileURLToPath(value);
+  } catch {
+    return value;
+  }
+}
+
+/** A specifier is only a path when it was written as one: `pg` must not be relativised. */
+function shownSpecifier(specifier: string): string {
+  return isAbsolute(specifier) ? displayPath(specifier) : specifier;
+}
+
+function isBareSpecifier(specifier: string): boolean {
+  return !specifier.startsWith('.') && !isAbsolute(specifier);
+}
+
+function looksLikeAlias(specifier: string): boolean {
+  return /^[@~]\//.test(specifier);
+}
+
+/**
+ * The config is the one file whose name sowme fixes, so recognising it needs no plumbing.
+ * A config renamed by --config falls through to the generic advice, which is still true —
+ * only less specific.
+ */
+function isConfigFile(file: string): boolean {
+  return basename(file).startsWith('sowme.config.');
 }
 
 /**
