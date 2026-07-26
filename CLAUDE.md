@@ -67,14 +67,6 @@ about it* — that is why `errors.ts` exists as a single catalogue with a `hint`
 class. An error that guesses at the cause gets its own class, so a wrong guess can be
 narrowed later without touching the right ones.
 
-## 6. Report short, and name what you did not do
-
-Every report carries an explicit **not done**: cut scope, known gaps, anything skipped.
-Stated plainly, never dissolved into prose. The gaps are the useful half.
-
-Asked what is next, give an ordered answer with a first step — not a survey of equally
-weighted options.
-
 ---
 
 # The project
