@@ -1,4 +1,5 @@
 import { resolveConfig } from './config.ts';
+import { findCrossImports } from './cross-imports.ts';
 import { discoverSeeds } from './discover.ts';
 import {
   ensureJournal,
@@ -106,6 +107,17 @@ export async function runSeeds<TDb>(
   assertSelectionIsRunnable(ordered, decisions, journal);
 
   emit({ type: 'plan', env, order: ordered.map((seed) => seed.name) });
+
+  // Asked of every discovered seed, never of the selection. A cross-import is a fact about
+  // the files, so `--only` narrowing it would hide it precisely where it costs the most:
+  // `--only demo` still applies territory when demo imports and calls it, and the journal
+  // row that would have shown territory ran is the one thing `--only demo` does not write.
+  //
+  // After the plan and before the first seed, because that is where it can still be acted
+  // on. Reported and nothing else — no throw, no skip, no exit code. `status` reports the
+  // same set, from the same call.
+  const crossImports = await findCrossImports(ordered);
+  if (crossImports.length > 0) emit({ type: 'cross-imports', findings: crossImports });
 
   const outcomes: SeedOutcome[] = [];
 

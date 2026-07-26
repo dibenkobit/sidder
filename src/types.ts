@@ -185,9 +185,51 @@ export type SeedOutcome =
    */
   | { name: string; status: 'failed'; error: unknown; rolledBack: boolean };
 
+/**
+ * A seed file that imports another seed.
+ *
+ * `dependsOn` exists to replace exactly this. sowme guarantees each seed runs once per
+ * invocation, so "territory must exist first" is a declaration; importing `seedTerritory`
+ * and calling it is the old way, and doing both applies territory twice — once because
+ * sowme ran it, once because demo called it. The second application is silent, because
+ * both are ordinary writes.
+ *
+ * So sowme reports the coupling and names what it saw. It deliberately does not decide
+ * whether a given binding is a seed's own work or a table of constants that happens to
+ * live in the same file: `import { REGIONS, seedTerritory }` is one statement carrying
+ * both, and no rule over names can separate them — a seed's work is not always the
+ * default export, and shared data is not always a plain object. Naming the bindings and
+ * letting the person reading decide is the honest version, and the advice that comes with
+ * it — move shared data into a module that is not a seed — dissolves the warning properly
+ * rather than silencing it.
+ *
+ * A warning and nothing else. `run` and `status` both report it, and it changes neither
+ * what sowme does nor what it exits with. See `findCrossImports` in `cross-imports.ts`
+ * for how the finding is made, and what a text scan can and cannot see.
+ */
+export interface CrossImport {
+  /** Name of the seed doing the importing. */
+  from: string;
+  /** Name of the seed being imported. */
+  to: string;
+  /** The bindings the import statements named, deduplicated, in source order. */
+  bindings: string[];
+}
+
 /** Emitted while a run is in progress, so the CLI can report as it goes. */
 export type RunEvent =
   | { type: 'plan'; env: string; order: string[] }
+  /**
+   * Seed files that import each other: once, after the plan, before the first seed — and
+   * not at all when there are none.
+   *
+   * An event rather than a field on `RunResult`, because this is news the person watching
+   * a run needs before the seeds go past, and a result only reaches whoever inspects the
+   * return value — which on a failed run is `SeedFailedError.result`, so one warning would
+   * have to be read out of two places. Not a field on `plan` either: the plan is the
+   * forecast the run acts on, and a finding here changes nothing about it.
+   */
+  | { type: 'cross-imports'; findings: CrossImport[] }
   | { type: 'start'; name: string }
   | { type: 'applied'; name: string; durationMs: number }
   /** Emitted in place of `applied` for every seed a dry run decided to run. */

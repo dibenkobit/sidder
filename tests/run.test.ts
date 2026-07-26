@@ -1,7 +1,11 @@
 import { describe, expect, test } from 'bun:test';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { runSeeds, SeedFailedError } from '../src/run.ts';
 import type { Config, RunEvent, Seed } from '../src/types.ts';
 import { createMemoryAdapter, type MemoryDb } from './helpers/memory-adapter.ts';
+
+const fixtures = resolve(dirname(fileURLToPath(import.meta.url)), 'fixtures');
 
 function setup(seeds: Seed<MemoryDb>[], env = 'development') {
   const memory = createMemoryAdapter();
@@ -388,5 +392,94 @@ describe('runSeeds', () => {
     await runSeeds(config);
 
     expect(memory.closed).toBe(false);
+  });
+});
+
+/**
+ * Real files, because the finding is made by reading them. `tests/fixtures/cross` is the
+ * real consumer's shape: `demo` imports `territory`'s constants and its work in one
+ * statement, and sowme runs `territory` as a seed as well.
+ */
+describe('runSeeds and seeds that import each other', () => {
+  /** A run over the fixture directory, with every event it emitted. */
+  async function runFixtures(glob: string, options: { only?: string[] } = {}) {
+    const memory = createMemoryAdapter();
+    const config: Config<MemoryDb> = { adapter: memory.adapter, seeds: glob, env: 'development' };
+    const events: RunEvent[] = [];
+
+    const result = await runSeeds(config, {
+      baseDir: fixtures,
+      onEvent: (event) => events.push(event),
+      ...options,
+    });
+
+    return { result, events, memory };
+  }
+
+  test('names the seeds and the bindings it read out of the files', async () => {
+    const { events } = await runFixtures('cross/*.ts');
+
+    expect(events.find((event) => event.type === 'cross-imports')).toEqual({
+      type: 'cross-imports',
+      findings: [{ from: 'demo', to: 'territory', bindings: ['REGIONS', 'seedTerritory'] }],
+    });
+  });
+
+  /** The whole contract: a warning. It never throws, never skips and never changes a run. */
+  test('changes nothing about the run it warns about', async () => {
+    const { result, memory } = await runFixtures('cross/*.ts');
+
+    expect(result.outcomes).toEqual([
+      { name: 'territory', status: 'applied', durationMs: expect.any(Number) },
+      { name: 'demo', status: 'applied', durationMs: expect.any(Number) },
+    ]);
+    expect([...memory.committed.journal.keys()]).toEqual(['territory', 'demo']);
+  });
+
+  test('arrives after the plan and before the first seed, so it can still be acted on', async () => {
+    const { events } = await runFixtures('cross/*.ts');
+    const types = events.map((event) => event.type);
+
+    expect(types.indexOf('cross-imports')).toBe(types.indexOf('plan') + 1);
+    expect(types.indexOf('cross-imports')).toBeLessThan(types.indexOf('start'));
+  });
+
+  /**
+   * `--only territory` selects the seed being imported and leaves the importer out. The
+   * import is still in `demo.ts`, and a narrowed run is where its second application is
+   * least visible — so the selection does not narrow this.
+   */
+  test('is not narrowed by --only', async () => {
+    const { events, result } = await runFixtures('cross/*.ts', { only: ['territory'] });
+
+    expect(events.find((event) => event.type === 'cross-imports')).toMatchObject({
+      findings: [{ from: 'demo', to: 'territory' }],
+    });
+    expect(result.outcomes.map((outcome) => outcome.status)).toEqual(['applied', 'skipped']);
+  });
+
+  test('emits nothing at all for a project where no seed imports another', async () => {
+    const { events } = await runFixtures('seeds/**/*.ts');
+
+    expect(events.filter((event) => event.type === 'cross-imports')).toEqual([]);
+  });
+
+  test('a dry run reports it too — checking is the point of a dry run', async () => {
+    const memory = createMemoryAdapter();
+    const config: Config<MemoryDb> = {
+      adapter: memory.adapter,
+      seeds: 'cross/*.ts',
+      env: 'development',
+    };
+    const events: RunEvent[] = [];
+
+    await runSeeds(config, {
+      baseDir: fixtures,
+      dryRun: true,
+      onEvent: (event) => events.push(event),
+    });
+
+    expect(events.some((event) => event.type === 'cross-imports')).toBe(true);
+    expect(memory.committed.journal.size).toBe(0);
   });
 });

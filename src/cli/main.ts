@@ -9,6 +9,7 @@ import { runSeeds, SeedFailedError } from '../run.ts';
 import type { Config, RunEvent } from '../types.ts';
 import {
   CLEAR_LINE,
+  formatCrossImports,
   formatDuration,
   formatError,
   formatForgotten,
@@ -170,6 +171,14 @@ async function commandRun(
           only === undefined ? event.order : event.order.filter((name) => only.includes(name)),
         );
         break;
+      case 'cross-imports': {
+        // Before the first seed, so it is read before the run it is about rather than
+        // after. Never null here — the event is only emitted for a non-empty list — but
+        // `formatStatus` asks the same question of a project that has none.
+        const warning = formatCrossImports(event.findings);
+        if (warning !== null) write(`${warning}\n`);
+        break;
+      }
       case 'start':
         if (isInteractive) process.stdout.write(`  ${style.dim('⋯')} ${pad(event.name)}`);
         break;
