@@ -314,7 +314,7 @@ interface Scope<TDb> {
 
 `sowme/adapters/pg` and `sowme/adapters/drizzle` ship with it. Writing your own is
 about ten lines, and doing so is the best way to see exactly what sowme does to your
-database — which is three statements against one table.
+database — which is a handful of statements against one table, plus one advisory lock.
 
 ```ts
 const scope = (q) => ({ db: q, execute: async (sql, p) => (await q.query(sql, p)).rows });
@@ -363,6 +363,35 @@ existing.
 
 ---
 
+## Two runs at once
+
+Two replicas in a deploy, or two jobs in one pipeline, do not apply anything twice.
+
+The reason the naive version of this is wrong is worth stating, because it is the bug
+sowme had: reading the journal once at the start and deciding from it means two runs that
+start together both read an empty journal and both decide to run everything. The journal
+then covers its own tracks, since recording an applied seed upserts — so the table
+afterwards reads exactly as it should while the data went in twice.
+
+So the plan sowme prints is a forecast. The ruling is made per seed, immediately before
+it runs, inside its own transaction: an advisory lock on the seed's name, then a re-read
+of that one row. The second run waits for the first, sees the row, and reports `skipped`
+— which is what actually happened to it. Nothing is configurable here and there is no
+flag to pass.
+
+Two exceptions, both honest:
+
+- **`transaction: false` seeds** get the re-read but not the lock, because there is no
+  transaction to scope one to. Two runs arriving at one simultaneously can both apply it.
+  The alternatives are worse: a session-level lock through a pool can unlock on a
+  different connection than it locked, and holding a second transaction open purely to
+  own a lock deadlocks outright on a pool of one — a silent hang, in exactly the bulk-load
+  case where small pools live.
+- **`mode: 'always'` seeds** are supposed to run every time, so they take the lock and are
+  never skipped by the re-read. Concurrent runs serialise rather than deduplicate.
+
+---
+
 ## Runtimes
 
 sowme runs your seeds in its own process — one process, one connection — so the runtime
@@ -382,7 +411,10 @@ has **no runtime dependencies**:
 
 - **Postgres only.** The journal statements are Postgres SQL. Other dialects are cheap
   to add and not yet added.
-- **No locking.** Two `sowme run` at once will race.
+- **`transaction: false` is not concurrency-safe.** Everything else is — see
+  [Two runs at once](#two-runs-at-once) — but a seed that opted out of its transaction
+  has no transaction to scope a lock to, and two runs reaching one at the same instant
+  can both apply it.
 - **No `reset`.** There is no defined semantics for undoing a seed.
 - **Seeds and migrations on one timeline** — `dependsOn: ['migration:0012_…']` — is the
   strongest thing on the roadmap and not in this version. A backfill that has to happen

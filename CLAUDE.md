@@ -136,6 +136,14 @@ quote open wastes their day.
 because it is an options bag a CLI assembles from absent flags. The domain types (`Seed`,
 `Config`) do not, and should not.
 
+**The plan is a forecast; the ruling happens per seed, under a lock.** `decide()` runs
+against one journal read taken at the start, which is right for printing an order and
+wrong for authorising a write — two runs starting together both read an empty journal.
+So each seed re-asks inside its own transaction, after `lockSeed`. Anything that moves
+the journal check back to plan time reintroduces silent double-application, and the
+journal's upsert will hide it. `transaction: false` cannot take the lock; that gap is
+documented in `executeSeed` rather than papered over.
+
 ## Distribution
 
 `prepare` is `tsc -p tsconfig.build.json` and **not** `bun run build`, on purpose. It runs
