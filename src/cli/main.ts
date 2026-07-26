@@ -35,10 +35,10 @@ const HELP = `sidder ${VERSION} — a seed runner
   sidder run          run every seed that has not run yet, in dependency order
   sidder status       show what has run, what would run, and in what order
   sidder forget <a>   drop seeds from the journal so they run again
-  sidder init         write a starting sidder.config.ts
+  sidder init         write a starting sidder.config.mts
 
 Options
-  -c, --config <path>   config file (default: nearest sidder.config.ts, searching upwards)
+  -c, --config <path>   config file (default: nearest sidder.config.*, searching upwards)
   -e, --env <name>      environment to run as (default: NODE_ENV, then "development")
       --only <a,b>      run exactly these seeds; dependencies are not pulled in
       --force           run: apply seeds the journal has already recorded

@@ -25,7 +25,7 @@
     "cli"
   ],
   "engines": {
-    "node": ">=22"
+    "node": ">=22.18"
   },
   "bin": {
     "sidder": "./dist/cli/main.js"

@@ -1,13 +1,19 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { basename, resolve } from 'node:path';
+import { CONFIG_FILENAMES } from '../resolve/config.ts';
 import { style } from './format.ts';
 
 /**
- * Writes a starting `sidder.config.ts`.
+ * Writes a starting `sidder.config.mts`.
  *
  * It looks at your package.json to pick a template, and then says which one it picked
  * and why. Guessing saves you a trip to the README; guessing silently would leave you
  * wondering why the file mentions Drizzle.
+ *
+ * `.mts` is not a guess. Node decides what `.ts` means from the nearest package.json,
+ * so the ESM imports in a generated `.ts` config fail in an otherwise ordinary CommonJS
+ * project. `.mts` states its module format in its name and works the same way with Node,
+ * Bun, and a TypeScript loader.
  */
 
 type Flavour = 'drizzle' | 'pg';
@@ -21,15 +27,18 @@ type Flavour = 'drizzle' | 'pg';
  * a placeholder that says so in the file, says so again in the message, and leaves
  * `ModuleResolutionError` to say it a third time if you run before editing it.
  */
-const PLACEHOLDER = './src/db/index.ts';
+const PLACEHOLDER = './src/db/index.mts';
+const DEFAULT_CONFIG_FILE = 'sidder.config.mts';
 
 export function runInit(cwd: string, force: boolean): { path: string; message: string } {
-  const path = resolve(cwd, 'sidder.config.ts');
+  const existing = CONFIG_FILENAMES.map((name) => resolve(cwd, name)).find(existsSync);
+  const path = existing ?? resolve(cwd, DEFAULT_CONFIG_FILE);
+  const filename = basename(path);
 
-  if (existsSync(path) && !force) {
+  if (existing !== undefined && !force) {
     return {
       path,
-      message: `${style.yellow('sidder.config.ts already exists')} — pass --force to overwrite it.`,
+      message: `${style.yellow(`${filename} already exists`)} — pass --force to overwrite it.`,
     };
   }
 
@@ -39,12 +48,12 @@ export function runInit(cwd: string, force: boolean): { path: string; message: s
   return {
     path,
     message: [
-      `${style.green('wrote')} sidder.config.ts ${style.dim(`(${flavour} — ${evidence})`)}`,
+      `${style.green('wrote')} ${filename} ${style.dim(`(${flavour} — ${evidence})`)}`,
       '',
       `Next, point the ${style.bold(PLACEHOLDER)} import at the database handle you already have.`,
       'That path is a placeholder, not somewhere sidder looked. Then write a seed:',
       '',
-      style.dim('  // seeds/roles.ts'),
+      style.dim('  // seeds/roles.mts'),
       style.dim("  import { defineSeed } from 'sidder';"),
       style.dim(''),
       style.dim('  export default defineSeed({'),
@@ -53,7 +62,8 @@ export function runInit(cwd: string, force: boolean): { path: string; message: s
       style.dim('    },'),
       style.dim('  });'),
       '',
-      `Then ${style.bold('sidder status')} to see what it would do.`,
+      `Then ${style.bold('npx sidder status')} to see what it would do.`,
+      style.dim('For pnpm, Yarn, and Bun, see the package-manager commands in the README.'),
     ].join('\n'),
   };
 }
@@ -88,7 +98,7 @@ export default defineConfig({
   adapter: drizzleAdapter(db),
 
   // Where your seeds live. Paths are relative to this file.
-  seeds: 'seeds/**/*.ts',
+  seeds: 'seeds/**/*.mts',
 });
 `,
 
@@ -103,7 +113,7 @@ export default defineConfig({
   adapter: pgAdapter(pool),
 
   // Where your seeds live. Paths are relative to this file.
-  seeds: 'seeds/**/*.ts',
+  seeds: 'seeds/**/*.mts',
 });
 `,
 };

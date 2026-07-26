@@ -1,6 +1,8 @@
 import { pathToFileURL } from 'node:url';
 import {
+  isModuleFormatFailure,
   isParseFailure,
+  ModuleFormatError,
   ModuleResolutionError,
   ModuleSyntaxError,
   TypeScriptLoaderError,
@@ -43,6 +45,13 @@ export async function importModule(file: string): Promise<Record<string, unknown
       (code === 'ERR_UNKNOWN_FILE_EXTENSION' || code === 'ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX')
     ) {
       throw new TypeScriptLoaderError(file, error);
+    }
+
+    // Node has read the file, but classified it as CommonJS before meeting an ESM import.
+    // That is neither unsupported TypeScript nor a broken statement, and both of those
+    // answers send the user in the wrong direction.
+    if (isModuleFormatFailure(error)) {
+      throw new ModuleFormatError(file, error);
     }
 
     // Whether the parser rejected the file is a question about what was thrown, not about

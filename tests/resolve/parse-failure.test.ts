@@ -2,7 +2,12 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { isParseFailure, ModuleSyntaxError } from '../../src/errors.ts';
+import {
+  isModuleFormatFailure,
+  isParseFailure,
+  ModuleFormatError,
+  ModuleSyntaxError,
+} from '../../src/errors.ts';
 import { importModule } from '../../src/resolve/load-module.ts';
 
 /**
@@ -225,5 +230,22 @@ describe('isParseFailure', () => {
     ]) {
       expect(isParseFailure(value)).toBe(false);
     }
+  });
+});
+
+describe('module format failures', () => {
+  test('the Node report for ESM parsed as CommonJS gets its own actionable answer', () => {
+    const cause = new SyntaxError('Cannot use import statement outside a module');
+
+    expect(isModuleFormatFailure(cause)).toBe(true);
+
+    const error = new ModuleFormatError('/project/sidder.config.ts', cause);
+    expect(error.hint).toContain('rename TypeScript config and seed files from .ts to .mts');
+    expect(error.hint).toContain('"type": "module"');
+    expect(error.hint).not.toContain('Node >= 22.18');
+  });
+
+  test('an ordinary parse error is not assigned a module mode', () => {
+    expect(isModuleFormatFailure(new SyntaxError('Unterminated string constant'))).toBe(false);
   });
 });

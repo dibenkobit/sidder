@@ -152,10 +152,36 @@ export class JournalTableMismatchError extends SidderError {
 const RUNTIME_CHOICES = [
   'sidder runs your seeds in its own process, so whatever launched sidder has to be able to import .ts.',
   'Pick one:',
-  '  bun --bun sidder run          # Bun: native TypeScript, honours tsconfig paths',
-  '  node >= 22.18                # native type stripping, no tsconfig paths',
-  '  node --import tsx node_modules/.bin/sidder run',
+  '  bun --bun sidder run   # native TypeScript, honours tsconfig paths',
+  '  Node >= 22.18          # native type stripping; use .mts, or "type": "module" with .ts',
+  '  a loader               # npm i -D tsx, then see README — Runtimes',
 ];
+
+/**
+ * The runtime parsed ESM syntax as CommonJS.
+ *
+ * This is observable rather than inferred: Node says exactly that an import appeared
+ * outside a module. It happens most often when a `.ts` file containing imports sits in a
+ * package without `"type": "module"`. A separate class keeps that answer out of genuine
+ * syntax failures, where renaming a file would be useless.
+ */
+export class ModuleFormatError extends SidderError {
+  constructor(file: string, cause: unknown) {
+    super(
+      `Could not load ${file} as an ES module`,
+      [
+        'The runtime treated this file as CommonJS, but it contains ESM import/export syntax.',
+        'Pick one:',
+        '  rename TypeScript config and seed files from .ts to .mts',
+        '  set "type": "module" in the nearest package.json',
+        '  run sidder through Bun or a TypeScript loader — see README — Runtimes',
+        '',
+        `Original error: ${describe(cause)}`,
+      ].join('\n'),
+    );
+    this.name = 'ModuleFormatError';
+  }
+}
 
 /**
  * The runtime refused the file outright — it does not read TypeScript at all, or it
@@ -416,6 +442,11 @@ function isConfigFile(file: string): boolean {
  */
 export function isParseFailure(cause: unknown): boolean {
   return parseFailureOf(cause) !== null;
+}
+
+/** Node's exact report for ESM syntax in a file it classified as CommonJS. */
+export function isModuleFormatFailure(cause: unknown): boolean {
+  return describe(cause).includes('Cannot use import statement outside a module');
 }
 
 /** What the parser said, and where it said it — the two things a report needs. */

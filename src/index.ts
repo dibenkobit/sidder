@@ -7,6 +7,7 @@ export {
   InvalidSeedError,
   JournalTableMismatchError,
   MissingDependencyError,
+  ModuleFormatError,
   ModuleResolutionError,
   ModuleSyntaxError,
   NoSeedsFoundError,

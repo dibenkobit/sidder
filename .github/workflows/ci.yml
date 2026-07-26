@@ -57,10 +57,23 @@ jobs:
   # that would be published, on the oldest Node the package claims to support.
   package:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: sidder
+          POSTGRES_PASSWORD: sidder
+          POSTGRES_DB: sidder
+        ports: ['55432:5432']
+        options: >-
+          --health-cmd "pg_isready -U sidder"
+          --health-interval 1s
+          --health-timeout 3s
+          --health-retries 30
     strategy:
       fail-fast: false
       matrix:
-        node: ['22', '24']
+        node: ['22.18.0', '24']
 
     steps:
       - uses: actions/checkout@v7
@@ -78,13 +91,20 @@ jobs:
         run: |
           mkdir /tmp/app && cd /tmp/app
           npm init -y >/dev/null
-          npm install /tmp/sidder-*.tgz
+          npm install /tmp/sidder-*.tgz pg
 
-      # No database needed: this exercises the bin shim, the shebang, the exports map
-      # and the TypeScript loader — every way the published layout can be wrong.
+      # This exercises the generated config, bin shim, exports map, TypeScript loader,
+      # adapter and journal against the artifact a user actually installs.
       - name: the CLI runs on Node ${{ matrix.node }}
         working-directory: /tmp/app
         run: |
           ./node_modules/.bin/sidder --version
           ./node_modules/.bin/sidder init
-          test -f sidder.config.ts
+          test -f sidder.config.mts
+          mkdir -p src/db seeds
+          cp "$GITHUB_WORKSPACE/tests/package-project/src/db/index.mts" src/db/index.mts
+          cp "$GITHUB_WORKSPACE/tests/package-project/seeds/roles.mts" seeds/roles.mts
+          ./node_modules/.bin/sidder status
+          ./node_modules/.bin/sidder run --dry-run
+          ./node_modules/.bin/sidder run
+          ./node_modules/.bin/sidder run
