@@ -5,6 +5,7 @@ import { Inter } from 'next/font/google';
 
 const inter = Inter({
   subsets: ['latin'],
+  variable: '--font-inter',
 });
 
 const deploymentUrl =
@@ -25,7 +26,7 @@ export const metadata: Metadata = {
 
 export default function Layout({ children }: LayoutProps<'/'>) {
   return (
-    <html lang="en" className={inter.className} suppressHydrationWarning>
+    <html lang="en" className={inter.variable} suppressHydrationWarning>
       <body className="flex flex-col min-h-screen">
         <RootProvider>{children}</RootProvider>
       </body>

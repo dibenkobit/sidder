@@ -1,229 +1,387 @@
-import {
-  ArrowRight,
-  Check,
-  Database,
-  GitBranch,
-  GitFork,
-  LockKeyhole,
-  ScanSearch,
-  SquareTerminal,
-} from 'lucide-react';
 import Link from 'next/link';
 
-const features = [
+const guarantees = [
   {
-    icon: GitBranch,
-    title: 'Ordered',
+    number: '01',
+    label: 'ORDER',
+    title: 'Dependencies, not filenames',
     description:
-      'Declare what a seed depends on. sidder finds a deterministic order and shows it before running.',
+      'Declare dependsOn. sidder computes one deterministic order and shows it before execution.',
   },
   {
-    icon: Database,
-    title: 'Resumable',
+    number: '02',
+    label: 'RESUME',
+    title: 'A journal that commits with the work',
     description:
-      'Every successful seed is journaled inside the same transaction as its database writes.',
+      'The seed writes and their journal row share a transaction. Half-applied is not a state.',
   },
   {
-    icon: ScanSearch,
-    title: 'Transparent',
+    number: '03',
+    label: 'EXPLAIN',
+    title: 'Every guess names its source',
     description:
-      'Config, environment, inferred names, order and every skipped seed are printed with their reason.',
+      'Config, environment, seed names, order and skips arrive with provenance, not magic.',
   },
   {
-    icon: LockKeyhole,
-    title: 'Concurrency-safe',
+    number: '04',
+    label: 'LOCK',
+    title: 'Concurrent runs re-check',
     description:
-      'Per-seed advisory locks keep two deploys from quietly applying the same seed twice.',
+      'A per-seed advisory lock prevents two deploys from quietly applying the same work twice.',
   },
 ];
 
 export default function HomePage() {
   return (
-    <main className="flex flex-1 flex-col overflow-hidden">
-      <section className="relative border-b">
-        <div className="sidder-grid pointer-events-none absolute inset-0" />
-        <div className="absolute inset-x-0 top-0 mx-auto h-80 max-w-3xl rounded-full bg-fd-primary/10 blur-3xl" />
-
-        <div className="relative mx-auto grid w-full max-w-[1200px] gap-14 px-6 py-20 md:px-10 md:py-28 lg:grid-cols-[1fr_0.88fr] lg:items-center lg:py-36">
-          <div>
-            <div className="mb-6 inline-flex items-center gap-2 rounded-full border bg-fd-card/80 px-3 py-1 text-sm text-fd-muted-foreground shadow-sm backdrop-blur">
-              <span className="size-1.5 rounded-full bg-emerald-500" />
-              Postgres · Drizzle · node-postgres
+    <div className="sidder-home">
+      <section className="sidder-hero">
+        <div className="sidder-frame">
+          <div className="sidder-hero-copy">
+            <div className="sidder-overline">
+              <span>POSTGRES SEED RUNNER</span>
+              <span>MIT / v0.1.0</span>
             </div>
 
-            <h1 className="max-w-3xl text-balance text-5xl font-semibold tracking-[-0.04em] md:text-7xl">
-              Seeds deserve
-              <span className="block text-fd-primary">a real runner.</span>
+            <h1>
+              Seed data.
+              <span className="sidder-hero-tagline">With a paper trail.</span>
             </h1>
 
-            <p className="mt-6 max-w-2xl text-pretty text-lg leading-8 text-fd-muted-foreground md:text-xl">
-              Migrations got discovery, ordering and a journal fifteen years ago. sidder brings the
-              same guarantees to database seeds — without inventing a new DSL.
+            <p className="sidder-hero-lede">
+              sidder discovers seed files, orders them by real dependencies, and records every
+              successful run in Postgres — in the same transaction as the writes.
             </p>
 
-            <div className="mt-9 flex flex-wrap gap-3">
-              <Link
-                href="/docs/getting-started"
-                className="inline-flex h-11 items-center gap-2 rounded-full bg-fd-primary px-5 font-medium text-fd-primary-foreground shadow-sm transition-opacity hover:opacity-90"
-              >
-                Get started
-                <ArrowRight className="size-4" />
+            <div className="sidder-hero-actions">
+              <Link className="sidder-button sidder-button-primary" href="/docs/getting-started">
+                Read the quick start
+                <span aria-hidden="true">↗</span>
               </Link>
               <Link
+                className="sidder-button"
                 href="https://github.com/dibenkobit/sidder"
-                className="inline-flex h-11 items-center gap-2 rounded-full border bg-fd-card px-5 font-medium transition-colors hover:bg-fd-accent"
+                rel="noreferrer"
+                target="_blank"
               >
-                <GitFork className="size-4" />
-                GitHub
+                View source
+                <span aria-hidden="true">↗</span>
               </Link>
             </div>
 
-            <div className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm text-fd-muted-foreground">
-              <span className="inline-flex items-center gap-2">
-                <Check className="size-4 text-emerald-500" />
-                zero runtime dependencies
+            <div className="sidder-install">
+              <span className="sidder-install-prompt" aria-hidden="true">
+                $
               </span>
-              <span className="inline-flex items-center gap-2">
-                <Check className="size-4 text-emerald-500" />
-                TypeScript-first
-              </span>
-              <span className="inline-flex items-center gap-2">
-                <Check className="size-4 text-emerald-500" />
-                Node 22.18+ and Bun
-              </span>
+              <code>npm i -D sidder</code>
+              <span className="sidder-install-note">zero runtime dependencies</span>
             </div>
           </div>
 
-          <div className="relative">
-            <div className="absolute -inset-8 rounded-[3rem] bg-fd-primary/10 blur-3xl" />
-            <div className="relative overflow-hidden rounded-2xl border bg-[#0b0d10] text-[13px] text-zinc-300 shadow-2xl shadow-black/20">
-              <div className="flex items-center gap-2 border-b border-white/10 px-4 py-3 text-zinc-500">
-                <span className="size-2.5 rounded-full bg-red-400/80" />
-                <span className="size-2.5 rounded-full bg-amber-400/80" />
-                <span className="size-2.5 rounded-full bg-emerald-400/80" />
-                <span className="ml-2 flex items-center gap-2">
-                  <SquareTerminal className="size-3.5" />
-                  sidder run
-                </span>
+          <div className="sidder-runbook">
+            <div className="sidder-runbook-head">
+              <span>RUN MANIFEST / 0017</span>
+              <span className="sidder-live">
+                <i aria-hidden="true" />
+                COMPLETE
+              </span>
+            </div>
+
+            <dl className="sidder-resolution">
+              <div>
+                <dt>CONFIG</dt>
+                <dd>sidder.config.mts</dd>
+                <span>found from cwd</span>
               </div>
-              <pre className="overflow-x-auto p-5 leading-7">
-                <code>
-                  <span className="text-zinc-100">sidder</span>
-                  <span className="text-zinc-600"> · </span>
-                  <span>sidder.config.mts</span>
-                  <span className="text-zinc-600"> · </span>
-                  <span>env development (NODE_ENV)</span>
-                  {'\n\n'}
-                  <span className="text-emerald-400"> ✓ </span>
+              <div>
+                <dt>ENV</dt>
+                <dd>development</dd>
+                <span>NODE_ENV</span>
+              </div>
+              <div>
+                <dt>JOURNAL</dt>
+                <dd>sidder_journal</dd>
+                <span>default</span>
+              </div>
+            </dl>
+
+            <div className="sidder-seed-list">
+              <div className="sidder-seed-row">
+                <span className="sidder-seed-index">01</span>
+                <span className="sidder-seed-path">
+                  <i aria-hidden="true" />
                   roles
-                  <span className="text-zinc-600"> 7ms</span>
-                  {'\n'}
-                  <span className="text-emerald-400"> ✓ </span>
+                </span>
+                <span className="sidder-seed-dependency">—</span>
+                <span className="sidder-seed-status">APPLIED</span>
+                <span className="sidder-seed-time">7ms</span>
+              </div>
+              <div className="sidder-seed-row">
+                <span className="sidder-seed-index">02</span>
+                <span className="sidder-seed-path">
+                  <i aria-hidden="true" />
                   territory
-                  <span className="text-zinc-600"> 5ms</span>
-                  {'\n'}
-                  <span className="text-emerald-400"> ✓ </span>
+                </span>
+                <span className="sidder-seed-dependency">roles</span>
+                <span className="sidder-seed-status">APPLIED</span>
+                <span className="sidder-seed-time">5ms</span>
+              </div>
+              <div className="sidder-seed-row">
+                <span className="sidder-seed-index">03</span>
+                <span className="sidder-seed-path">
+                  <i aria-hidden="true" />
                   demo
-                  <span className="text-zinc-600"> 7ms</span>
-                  {'\n'}
-                  <span className="text-zinc-600"> · </span>
+                </span>
+                <span className="sidder-seed-dependency">territory</span>
+                <span className="sidder-seed-status">APPLIED</span>
+                <span className="sidder-seed-time">7ms</span>
+              </div>
+              <div className="sidder-seed-row sidder-seed-row-muted">
+                <span className="sidder-seed-index">04</span>
+                <span className="sidder-seed-path">
+                  <i aria-hidden="true" />
                   bulk-metrics
-                  <span className="text-zinc-600"> already applied 2026-07-24</span>
-                  {'\n'}
-                  <span className="text-zinc-600"> · </span>
-                  fake-users
-                  <span className="text-zinc-600">
-                    {' '}
-                    development, staging only — running as production
-                  </span>
-                  {'\n\n'}
-                  <span className="text-zinc-500"> 3 applied, 2 skipped in 52ms</span>
-                </code>
-              </pre>
+                </span>
+                <span className="sidder-seed-dependency">demo</span>
+                <span className="sidder-seed-status">SKIPPED</span>
+                <span className="sidder-seed-time">once</span>
+              </div>
+            </div>
+
+            <div className="sidder-runbook-foot">
+              <span>3 applied / 1 skipped</span>
+              <span>COMMITTED IN 52ms</span>
             </div>
           </div>
         </div>
       </section>
 
-      <section className="mx-auto w-full max-w-[1200px] px-6 py-20 md:px-10 md:py-28">
-        <div className="max-w-2xl">
-          <p className="text-sm font-medium uppercase tracking-[0.18em] text-fd-primary">
-            Guessing is fine. Guessing quietly is not.
-          </p>
-          <h2 className="mt-4 text-3xl font-semibold tracking-tight md:text-5xl">
-            Everything inferred is explained.
-          </h2>
-          <p className="mt-5 text-lg leading-8 text-fd-muted-foreground">
-            sidder finds the config, discovers seeds, resolves the environment and computes the
-            order. Then it names every inference before anything reaches your database.
-          </p>
-        </div>
-
-        <div className="mt-12 grid gap-px overflow-hidden rounded-2xl border bg-fd-border md:grid-cols-2">
-          {features.map(({ icon: Icon, title, description }) => (
-            <article key={title} className="bg-fd-background p-7 md:p-9">
-              <div className="mb-5 inline-flex size-10 items-center justify-center rounded-xl border bg-fd-card text-fd-primary shadow-sm">
-                <Icon className="size-5" />
-              </div>
-              <h3 className="text-xl font-semibold">{title}</h3>
-              <p className="mt-2 leading-7 text-fd-muted-foreground">{description}</p>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="border-y bg-fd-card/45">
-        <div className="mx-auto grid w-full max-w-[1200px] gap-10 px-6 py-20 md:px-10 lg:grid-cols-[0.85fr_1.15fr] lg:items-center">
-          <div>
-            <h2 className="text-3xl font-semibold tracking-tight md:text-4xl">
-              Three concepts to seed one table.
+      <section className="sidder-problem">
+        <div className="sidder-frame sidder-section-grid">
+          <div className="sidder-section-label">
+            <span>THE PROBLEM</span>
+            <span>01 / 04</span>
+          </div>
+          <div className="sidder-problem-copy">
+            <h2>
+              A folder of scripts
+              <br />
+              is not a system.
             </h2>
-            <p className="mt-4 text-lg leading-8 text-fd-muted-foreground">
-              A config, <code>defineSeed</code>, and the database handle you are handed. Everything
-              else is optional and waits until you need it.
-            </p>
-            <Link
-              href="/docs/concepts"
-              className="mt-6 inline-flex items-center gap-2 font-medium text-fd-primary"
-            >
-              Explore the concepts
-              <ArrowRight className="size-4" />
-            </Link>
-          </div>
-
-          <div className="overflow-hidden rounded-2xl border bg-[#0b0d10] text-sm text-zinc-300 shadow-xl">
-            <div className="border-b border-white/10 px-5 py-3 text-zinc-500">seeds/roles.mts</div>
-            <pre className="overflow-x-auto p-5 leading-7">
-              <code>{`import { defineSeed } from 'sidder';
-
-export default defineSeed({
-  async run({ db }) {
-    await db.query(
-      "insert into roles (name) values ('admin')",
-    );
-  },
-});`}</code>
-            </pre>
+            <div className="sidder-problem-notes">
+              <p>
+                Migrations have discovery, ordering, history and one entry point. Seeds still get an{' '}
+                <code>&amp;&amp;</code> chain someone has to remember to maintain.
+              </p>
+              <p>
+                sidder gives data changes the operational discipline schema changes have had for
+                years. Seed code stays ordinary TypeScript.
+              </p>
+            </div>
           </div>
         </div>
       </section>
 
-      <section className="mx-auto w-full max-w-[1200px] px-6 py-20 text-center md:px-10 md:py-28">
-        <h2 className="text-3xl font-semibold tracking-tight md:text-5xl">
-          Stop maintaining the seed script chain.
-        </h2>
-        <p className="mx-auto mt-5 max-w-2xl text-lg text-fd-muted-foreground">
-          Install sidder, point it at the database handle you already have, and keep your seed code
-          ordinary.
-        </p>
-        <Link
-          href="/docs/getting-started"
-          className="mt-8 inline-flex h-11 items-center gap-2 rounded-full bg-fd-primary px-5 font-medium text-fd-primary-foreground"
-        >
-          Read the quick start
-          <ArrowRight className="size-4" />
-        </Link>
+      <section className="sidder-process">
+        <div className="sidder-frame">
+          <div className="sidder-section-label">
+            <span>THE RUN</span>
+            <span>02 / 04</span>
+          </div>
+
+          <div className="sidder-process-intro">
+            <h2>From loose files to database history.</h2>
+            <p>
+              One command resolves the plan before it asks Postgres to do anything. Every stage
+              leaves evidence.
+            </p>
+          </div>
+
+          <ol className="sidder-process-list">
+            <li>
+              <span className="sidder-process-number">01</span>
+              <h3>Discover</h3>
+              <p>Find config and seed files by convention. Print where every value came from.</p>
+              <code>{'seeds/**/*.mts'}</code>
+            </li>
+            <li>
+              <span className="sidder-process-number">02</span>
+              <h3>Order</h3>
+              <p>Validate names and dependencies. Produce a deterministic topological order.</p>
+              <code>roles → territory → demo</code>
+            </li>
+            <li>
+              <span className="sidder-process-number">03</span>
+              <h3>Commit</h3>
+              <p>Lock, re-check, run, and journal each seed as one transactional unit.</p>
+              <code>BEGIN → seed → journal → COMMIT</code>
+            </li>
+          </ol>
+        </div>
       </section>
-    </main>
+
+      <section className="sidder-code-section">
+        <div className="sidder-frame">
+          <div className="sidder-section-label">
+            <span>THE SURFACE</span>
+            <span>03 / 04</span>
+          </div>
+
+          <div className="sidder-code-grid">
+            <div className="sidder-code-copy">
+              <p className="sidder-code-kicker">THREE CONCEPTS. THAT&apos;S IT.</p>
+              <h2>Keep the seed code boring.</h2>
+              <p>
+                A config, <code>defineSeed</code>, and the database handle you are handed. No
+                factory DSL, hidden registry or special query API.
+              </p>
+              <Link href="/docs/concepts">
+                See the complete model
+                <span aria-hidden="true"> →</span>
+              </Link>
+            </div>
+
+            <div className="sidder-editor">
+              <div className="sidder-editor-tabs">
+                <span className="sidder-editor-tab-active">seeds/roles.mts</span>
+                <span className="sidder-editor-tab">sidder.config.mts</span>
+              </div>
+              <div className="sidder-code">
+                <span className="sidder-line-number">1</span>
+                <code>
+                  <b>import</b> {'{'} defineSeed {'}'} <b>from</b> <em>&apos;sidder&apos;;</em>
+                </code>
+                <span className="sidder-line-number">2</span>
+                <code />
+                <span className="sidder-line-number">3</span>
+                <code>
+                  <b>export default</b> defineSeed({'{'}
+                </code>
+                <span className="sidder-line-number">4</span>
+                <code>
+                  {'  '}async run({'{'} db {'}'}) {'{'}
+                </code>
+                <span className="sidder-line-number">5</span>
+                <code>{'    '}await db.query(</code>
+                <span className="sidder-line-number">6</span>
+                <code>
+                  {'      '}
+                  <em>&quot;insert into roles (name) values (&apos;admin&apos;)&quot;</em>,
+                </code>
+                <span className="sidder-line-number">7</span>
+                <code>{'    '});</code>
+                <span className="sidder-line-number">8</span>
+                <code>
+                  {'  '}
+                  {'}'},
+                </code>
+                <span className="sidder-line-number">9</span>
+                <code>{'}'});</code>
+              </div>
+              <div className="sidder-editor-status">
+                <span>TypeScript</span>
+                <span>ordinary database code</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="sidder-guarantees">
+        <div className="sidder-frame">
+          <div className="sidder-section-label">
+            <span>THE GUARANTEES</span>
+            <span>04 / 04</span>
+          </div>
+
+          <div className="sidder-guarantees-heading">
+            <h2>Designed for the failure, not the demo.</h2>
+            <p>
+              The happy path is easy. sidder&apos;s contract is about what happens when a process
+              races, crashes, skips or has to explain itself.
+            </p>
+          </div>
+
+          <div className="sidder-guarantee-list">
+            {guarantees.map((guarantee) => (
+              <article key={guarantee.number}>
+                <div className="sidder-guarantee-index">
+                  <span>{guarantee.number}</span>
+                  <span>{guarantee.label}</span>
+                </div>
+                <h3>{guarantee.title}</h3>
+                <p>{guarantee.description}</p>
+              </article>
+            ))}
+          </div>
+
+          <div className="sidder-transaction">
+            <div className="sidder-transaction-title">
+              <span>TRANSACTION / seed:roles</span>
+              <span>ATOMIC</span>
+            </div>
+            <div className="sidder-transaction-flow">
+              <div>
+                <span>01</span>
+                <strong>LOCK</strong>
+                <small>pg_advisory_xact_lock</small>
+              </div>
+              <i aria-hidden="true">→</i>
+              <div>
+                <span>02</span>
+                <strong>SEED WRITES</strong>
+                <small>your existing db handle</small>
+              </div>
+              <i aria-hidden="true">→</i>
+              <div>
+                <span>03</span>
+                <strong>JOURNAL ROW</strong>
+                <small>same transaction, same scope</small>
+              </div>
+              <i aria-hidden="true">→</i>
+              <div className="sidder-transaction-commit">
+                <span>04</span>
+                <strong>COMMIT</strong>
+                <small>or all of it rolls back</small>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="sidder-final">
+        <div className="sidder-frame">
+          <p className="sidder-final-kicker">NO MORE MYSTERY SEED SCRIPTS.</p>
+          <h2>The next run should explain itself.</h2>
+          <div className="sidder-final-actions">
+            <Link className="sidder-button sidder-button-primary" href="/docs/getting-started">
+              Run the quick start
+              <span aria-hidden="true">↗</span>
+            </Link>
+            <div className="sidder-final-install">
+              <span className="sidder-final-prompt" aria-hidden="true">
+                $
+              </span>
+              <code>npm i -D sidder</code>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <footer className="sidder-footer">
+        <div className="sidder-frame">
+          <div>
+            <span>sidder</span>
+            <p>A seed runner for Postgres.</p>
+          </div>
+          <nav aria-label="Footer">
+            <Link href="/docs">Docs</Link>
+            <Link href="/docs/reference/cli">CLI</Link>
+            <Link href="/docs/reference/api">API</Link>
+            <Link href="https://github.com/dibenkobit/sidder">GitHub</Link>
+          </nav>
+          <span className="sidder-footer-license">MIT / 2026</span>
+        </div>
+      </footer>
+    </div>
   );
 }
