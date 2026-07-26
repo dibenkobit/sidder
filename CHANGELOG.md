@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.2.0](https://github.com/dibenkobit/sidder/compare/v0.1.0...v0.2.0) (2026-07-26)
+
+
+### Features
+
+* **cli:** add command-specific help ([df284ee](https://github.com/dibenkobit/sidder/commit/df284ee8a7bce25efa1430a5913524b14aea452b))
+* **docs:** rebuild homepage as a seed operation register ([af87e56](https://github.com/dibenkobit/sidder/commit/af87e56d4d44cb2aa87a1607b1f07e0cb1c7940d))
+* **docs:** scaffold fumadocs site ([cf56d40](https://github.com/dibenkobit/sidder/commit/cf56d40bb94f89b5b84a85620b529c9b7af0bade))
+
+
+### Bug Fixes
+
+* **init:** generate module-safe starter files ([18f74d8](https://github.com/dibenkobit/sidder/commit/18f74d8179157ad6f8c482cff40462fd953476ac))
+* **init:** show type-safe seed examples ([76d3745](https://github.com/dibenkobit/sidder/commit/76d3745f180c3ca6e332f3b075f595408c253279))
+* **run:** keep dry runs read-only ([fdca467](https://github.com/dibenkobit/sidder/commit/fdca4670d8f1fc06349da2b822207eea4fadd75b))
+
+
+### Reverts
+
+* **docs:** restore original landing page ([456f9af](https://github.com/dibenkobit/sidder/commit/456f9af838e4c3c114aedab7983b3f82a4001c64))
+
 ## [0.1.0](https://github.com/dibenkobit/sidder/compare/v0.0.1...v0.1.0) (2026-07-26)
 
 
