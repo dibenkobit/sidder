@@ -1,0 +1,20 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // The published output mirrors src/ one file at a time — no bundler.
+    // Reading dist/ should feel exactly like reading src/.
+    "module": "NodeNext",
+    "moduleResolution": "nodenext",
+    "rewriteRelativeImportExtensions": true,
+    "noEmit": false,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "outDir": "dist",
+    "rootDir": "src",
+    // Bun's types are a dev convenience; the published build must typecheck against
+    // Node alone, since that is what it runs on.
+    "types": ["node"]
+  },
+  "include": ["src"]
+}

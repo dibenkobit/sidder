@@ -1,0 +1,86 @@
+{
+  "name": "sowme",
+  "version": "0.1.0",
+  "description": "A seed runner. Migrations got one fifteen years ago; seeds never did.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Nikita Snetkov",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dibenkobit/sowme.git"
+  },
+  "homepage": "https://github.com/dibenkobit/sowme#readme",
+  "bugs": "https://github.com/dibenkobit/sowme/issues",
+  "keywords": [
+    "seed",
+    "seeds",
+    "seeding",
+    "database",
+    "postgres",
+    "drizzle",
+    "prisma",
+    "fixtures",
+    "migrations",
+    "cli"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "bin": {
+    "sowme": "./dist/cli/main.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./adapters/drizzle": {
+      "types": "./dist/adapters/drizzle.d.ts",
+      "default": "./dist/adapters/drizzle.js"
+    },
+    "./adapters/pg": {
+      "types": "./dist/adapters/pg.d.ts",
+      "default": "./dist/adapters/pg.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && chmod +x dist/cli/main.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "test": "bun test",
+    "test:pg": "SOWME_TEST_DATABASE_URL=postgresql://sowme:sowme@localhost:55432/sowme bun test",
+    "db:up": "docker compose up -d --wait",
+    "db:down": "docker compose down -v",
+    "check": "bun run lint && bun run typecheck && bun test",
+    "prepublishOnly": "bun run check && bun run build"
+  },
+  "peerDependencies": {
+    "drizzle-orm": "*",
+    "pg": "*"
+  },
+  "peerDependenciesMeta": {
+    "drizzle-orm": {
+      "optional": true
+    },
+    "pg": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.5",
+    "@types/bun": "latest",
+    "@types/node": "^26.1.1",
+    "@types/pg": "^8.20.0",
+    "drizzle-orm": "^0.44.0",
+    "pg": "^8.16.3",
+    "typescript": "^5.9.3"
+  }
+}

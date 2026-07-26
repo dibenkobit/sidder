@@ -1,0 +1,21 @@
+# Postgres for the integration tests. `bun run db:up`, then `bun run test:pg`.
+#
+# The unit tests need none of this — they run against an in-memory adapter and are
+# what `bun test` runs by default. This container exists to prove the one thing an
+# in-memory double cannot: that the journal SQL is real SQL, and that a failing seed
+# and its journal row roll back together inside an actual transaction.
+
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: sowme
+      POSTGRES_PASSWORD: sowme
+      POSTGRES_DB: sowme
+    ports:
+      - '55432:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U sowme']
+      interval: 1s
+      timeout: 3s
+      retries: 30
