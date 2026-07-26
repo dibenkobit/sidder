@@ -1,7 +1,7 @@
 import { SowmeError } from '../errors.ts';
 import type { Inspection } from '../inspect.ts';
 import type { Decision } from '../plan.ts';
-import type { SeedOutcome, SkipReason } from '../types.ts';
+import type { CrossImport, SeedOutcome, SkipReason } from '../types.ts';
 
 /**
  * Everything sowme prints.
@@ -126,6 +126,53 @@ export function padder(names: readonly string[]): (name: string) => string {
   return (name) => name.padEnd(width);
 }
 
+/**
+ * Seed files that import another seed, and the two ways to stop them.
+ *
+ * This is the warning that has to survive being read by someone who does not think they
+ * have a problem. For the project it was written against, these imports *are* how two
+ * seeds share a constants table — and a line that reads as sowme complaining about
+ * constants gets muted, after which the silent double application ships anyway. So it
+ * names both seeds and every binding it saw, so the statement can be found in the file,
+ * and it asks for the one change that dissolves the finding instead of quietening it:
+ * put the shared thing somewhere that is not a seed.
+ *
+ * What it must not do is claim to know which of the two it is looking at. `import
+ * { REGIONS, seedTerritory }` is one statement carrying data and work, and the scan
+ * reports names, not meanings — so the sentence about applying twice says *called* rather
+ * than *imported*, and the advice carries both halves. The half about `dependsOn` is not
+ * optional: importing another seed's work is the mistake `dependsOn` was added to retire,
+ * and a warning that only talked about data would leave that reader with nowhere to go.
+ *
+ * Null for no findings, so a caller can ask without checking first.
+ */
+export function formatCrossImports(findings: readonly CrossImport[]): string | null {
+  if (findings.length === 0) return null;
+
+  const phrase = (finding: CrossImport) => `${finding.from} imports ${finding.to}`;
+  const pad = padder(findings.map(phrase));
+
+  const rows = findings.map((finding) => {
+    // Named, never interpreted. A statement that binds nothing — a bare `import './x.ts'`
+    // or a dynamic one — still says so, rather than trailing off into an empty column.
+    const bindings =
+      finding.bindings.length > 0 ? finding.bindings.join(', ') : 'no bindings named';
+    return `    ${pad(phrase(finding))}  ${style.dim(`— ${bindings}`)}`;
+  });
+
+  return [
+    `  ${style.yellow('warning')} seed files that import another seed:`,
+    ...rows,
+    ...[
+      'Work imported from a seed and called runs twice — sowme runs that seed as',
+      'well — and both are ordinary writes, so the journal records one.',
+      'Which of those bindings is work and which is shared data, sowme does not decide.',
+      'Move data two seeds share into a module that is not a seed. Where it is the',
+      'work you want, `dependsOn` replaces the import and sowme still runs it once.',
+    ].map((line) => style.dim(`    ${line}`)),
+  ].join('\n');
+}
+
 /** Width of the longest thing the second column holds, so the notes line up. */
 const STATE_WIDTH = 'applied 0000-00-00'.length;
 
@@ -184,6 +231,18 @@ export function formatStatus(
 
   lines.push('');
   lines.push(style.dim(`  order: ${inspection.order.join(' → ')}`));
+
+  // Above the environment warning and below everything else, on the grounds that the
+  // environment warning answers the question `status` was asked — which seeds run here —
+  // and the last block is the one that gets read. This one is unsolicited news.
+  //
+  // Not narrowed by `--only`, unlike the rows: `Inspection.crossImports` says why. The
+  // names are on screen either way, because `order:` above names every seed.
+  const crossImports = formatCrossImports(inspection.crossImports);
+  if (crossImports !== null) {
+    lines.push('');
+    lines.push(crossImports);
+  }
 
   // The warning `run` gives, from the command you would reach for to check first. It asks
   // the question of the seeds this listing covers, so `--only` narrows it here exactly as

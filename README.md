@@ -142,6 +142,25 @@ memory**. Need the region ids? Select them.
 If a name in `dependsOn` does not exist, or two seeds depend on each other, sowme says
 so before running anything — and prints the actual cycle, not just that there is one.
 
+And because the old way is the quiet one, `run` and `status` both point it out when they
+see it:
+
+```
+  warning seed files that import another seed:
+    demo imports territory  — REGIONS, seedTerritory
+    Work imported from a seed and called runs twice — sowme runs that seed as
+    well — and both are ordinary writes, so the journal records one.
+    Which of those bindings is work and which is shared data, sowme does not decide.
+    Move data two seeds share into a module that is not a seed. Where it is the
+    work you want, `dependsOn` replaces the import and sowme still runs it once.
+```
+
+It is a warning and only a warning: nothing stops, and the exit code stays 0. The
+bindings are named rather than judged, because one `import` statement can carry a
+constants table and a seed's own work together and no rule over names separates them.
+sowme finds them by scanning the import statements as text — a bare specifier or a
+`tsconfig` alias is not resolved, so an import written that way is not reported.
+
 ### `environments` — a gate that cannot be forgotten
 
 ```ts
@@ -421,8 +440,6 @@ has **no runtime dependencies**:
   before a `NOT NULL` migration is currently held together by a comment, here and in
   every other codebase.
 - **Assets.** Seeds that read `*.geojson` and friends are on their own for now.
-- **Cross-imports between seed files** are not detected. Importing one seed from
-  another defeats `dependsOn`; sowme should warn and does not yet.
 
 ---
 

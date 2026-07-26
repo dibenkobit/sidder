@@ -1,9 +1,10 @@
 import { type ResolvedConfig, resolveConfig } from './config.ts';
+import { findCrossImports } from './cross-imports.ts';
 import { discoverSeeds } from './discover.ts';
 import { ensureJournal, readJournal } from './journal.ts';
 import { orderSeeds } from './order.ts';
 import { type Decision, decide } from './plan.ts';
-import type { Config, JournalEntry, SeedMode } from './types.ts';
+import type { Config, CrossImport, JournalEntry, SeedMode } from './types.ts';
 
 export interface SeedStatus {
   name: string;
@@ -35,6 +36,16 @@ export interface Inspection {
    * the leftover is how you find that out before it re-inserts everything.
    */
   orphans: JournalEntry[];
+  /**
+   * Seed files that import another seed.
+   *
+   * The one thing here `only` does not narrow. Every other field answers "what would
+   * `sowme run` do", which the selection is part of; this one answers "what is in these
+   * files", which it is not — the import statement is there whether or not you asked
+   * about either seed, and the run that selects only the importer is the one where the
+   * second application is hardest to see. `run` reports the same set.
+   */
+  crossImports: CrossImport[];
 }
 
 /**
@@ -86,5 +97,6 @@ export async function inspect<TDb>(
     order: ordered.map((seed) => seed.name),
     seeds,
     orphans,
+    crossImports: await findCrossImports(ordered),
   };
 }

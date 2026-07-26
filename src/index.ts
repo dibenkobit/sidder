@@ -25,6 +25,7 @@ export { runSeeds, SeedFailedError } from './run.ts';
 export type {
   Adapter,
   Config,
+  CrossImport,
   JournalEntry,
   ResolvedSeed,
   Row,

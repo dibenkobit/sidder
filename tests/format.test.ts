@@ -1,5 +1,10 @@
 import { describe, expect, test } from 'bun:test';
-import { formatNothingApplied, formatNotSelected, formatStatus } from '../src/cli/format.ts';
+import {
+  formatCrossImports,
+  formatNothingApplied,
+  formatNotSelected,
+  formatStatus,
+} from '../src/cli/format.ts';
 import type { Inspection, SeedStatus } from '../src/inspect.ts';
 import type { SeedOutcome } from '../src/types.ts';
 
@@ -64,6 +69,7 @@ function inspection(seeds: SeedStatus[], extra: Partial<Inspection> = {}): Inspe
     order: seeds.map((each) => each.name),
     seeds,
     orphans: [],
+    crossImports: [],
     ...extra,
   };
 }
@@ -156,6 +162,105 @@ describe('formatStatus', () => {
 
     expect(report).toContain('warning prodution is not an environment these seeds run in');
     expect(report).toContain('they run in: development, staging');
+  });
+
+  test('reports seed files that import each other, under the resolved order', () => {
+    const report = plain(
+      formatStatus(
+        inspection([seed('territory'), seed('demo', { dependsOn: ['territory'] })], {
+          crossImports: [{ from: 'demo', to: 'territory', bindings: ['REGIONS'] }],
+        }),
+      ),
+    );
+
+    expect(report).toContain('warning seed files that import another seed:');
+    expect(report).toContain('demo imports territory');
+    expect(report.indexOf('order:')).toBeLessThan(report.indexOf('warning'));
+  });
+
+  /**
+   * The one thing `--only` does not narrow. A cross-import between two seeds you did not
+   * select is still in the file, and `--only demo` is the run where the second application
+   * is least visible — so hiding the warning there would hide it where it costs the most.
+   */
+  test('keeps the warning when --only narrowed the rows away from it', () => {
+    const report = plain(
+      formatStatus(
+        inspection(
+          [
+            seed('roles'),
+            seed('territory', {
+              decision: { action: 'skip', reason: { kind: 'not-selected' } },
+            }),
+            seed('demo', { decision: { action: 'skip', reason: { kind: 'not-selected' } } }),
+          ],
+          { crossImports: [{ from: 'demo', to: 'territory', bindings: ['seedTerritory'] }] },
+        ),
+        { only: ['roles'] },
+      ),
+    );
+
+    expect(report).toContain('demo imports territory');
+    expect(report).toContain('seedTerritory');
+  });
+});
+
+describe('formatCrossImports', () => {
+  /** The finding the real consumer produced, which is what the wording was written for. */
+  const territory = { from: 'demo', to: 'territory', bindings: ['REGIONS', 'seedTerritory'] };
+
+  test('says nothing when no seed imports another', () => {
+    expect(formatCrossImports([])).toBeNull();
+  });
+
+  test('names both seeds and every binding, so the statement can be found', () => {
+    const block = plain(formatCrossImports([territory]) ?? '');
+
+    expect(block).toContain('demo imports territory');
+    expect(block).toContain('REGIONS, seedTerritory');
+  });
+
+  test('gives the advice that dissolves the finding rather than silencing it', () => {
+    const block = plain(formatCrossImports([territory]) ?? '');
+
+    // Both halves are mandatory: the reader whose bindings are data has somewhere to put
+    // them, and the reader whose bindings are work has the feature that replaces the call.
+    expect(block).toContain('Move data two seeds share into a module that is not a seed.');
+    expect(block).toContain('`dependsOn` replaces the import');
+  });
+
+  /**
+   * The honesty constraint. `import { REGIONS, seedTerritory }` is one statement carrying
+   * data and work, and the scan reports names rather than meanings — so the text says what
+   * happens when the work is *called*, and says out loud that it did not decide which is
+   * which. A warning that asserted "territory runs twice" would be guessing.
+   */
+  test('does not claim to know which bindings are data and which are work', () => {
+    const block = plain(formatCrossImports([territory]) ?? '');
+
+    expect(block).toContain('sowme does not decide');
+    expect(block).toContain('imported from a seed and called');
+  });
+
+  test('lines the bindings up when there is more than one finding', () => {
+    const block = plain(
+      formatCrossImports([
+        territory,
+        { from: 'fake-users', to: 'roles', bindings: ['ROLE_NAMES'] },
+      ]) ?? '',
+    );
+    const rows = block.split('\n').filter((line) => line.includes(' imports '));
+
+    expect(rows).toHaveLength(2);
+    expect(rows[0]?.indexOf('—')).toBe(rows[1]?.indexOf('—') ?? -1);
+  });
+
+  test('says so when the import named nothing at all', () => {
+    const block = plain(
+      formatCrossImports([{ from: 'demo', to: 'territory', bindings: [] }]) ?? '',
+    );
+
+    expect(block).toContain('demo imports territory  — no bindings named');
   });
 });
 

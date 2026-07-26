@@ -1,36 +1,12 @@
 import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
-import type { ResolvedSeed } from './types.ts';
-
-/**
- * Finds seed files that import each other.
- *
- * `dependsOn` exists to replace exactly this. sowme guarantees each seed runs once per
- * invocation, so "territory must exist first" is a declaration; importing `seedTerritory`
- * and calling it is the old way, and doing both applies territory twice — once because
- * sowme ran it, once because demo called it. The second application is silent, because
- * both are ordinary writes.
- *
- * So this reports the coupling and names what it saw. It deliberately does not decide
- * whether a given binding is a seed's own work or a table of constants that happens to
- * live in the same file: `import { REGIONS, seedTerritory }` is one statement carrying
- * both, and no rule over names can separate them — a seed's work is not always the
- * default export, and shared data is not always a plain object. Naming the bindings and
- * letting the person reading decide is the honest version, and the advice that comes with
- * it — move shared data into a module that is not a seed — dissolves the warning properly
- * rather than silencing it.
- */
-export interface CrossImport {
-  /** Name of the seed doing the importing. */
-  from: string;
-  /** Name of the seed being imported. */
-  to: string;
-  /** The bindings the import statements named, deduplicated, in source order. */
-  bindings: string[];
-}
+import type { CrossImport, ResolvedSeed } from './types.ts';
 
 /**
  * Reads every seed's source and reports the imports that land on another seed's file.
+ *
+ * {@link CrossImport} is where this lives as a concept, and where the argument for naming
+ * the bindings rather than ruling on them is written down. This is the scan.
  *
  * Text, not a parse. sowme has no runtime dependencies and a parser is a large thing to
  * take on for a warning, so this matches import statements with a regular expression.
