@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { runSeeds } from '../src/run.ts';
+import { runSeeds, SeedFailedError } from '../src/run.ts';
 import type { Config, RunEvent, Seed } from '../src/types.ts';
 import { createMemoryAdapter, type MemoryDb } from './helpers/memory-adapter.ts';
 
@@ -18,6 +18,17 @@ function writing(name: string, extra: Partial<Seed<MemoryDb>> = {}): Seed<Memory
     },
     ...extra,
   };
+}
+
+/** The failure a run threw. Fails the test if it did not throw one. */
+async function failureOf(run: Promise<unknown>): Promise<SeedFailedError> {
+  try {
+    await run;
+  } catch (error) {
+    if (error instanceof SeedFailedError) return error;
+    throw error;
+  }
+  throw new Error('expected the run to throw SeedFailedError');
 }
 
 describe('runSeeds', () => {
@@ -124,6 +135,87 @@ describe('runSeeds', () => {
     expect(memory.committed.journal.size).toBe(0);
   });
 
+  test('the throw says which seeds committed before it', async () => {
+    const boom = new Error('constraint violation');
+    const { config } = setup([
+      writing('roles'),
+      {
+        name: 'demo',
+        dependsOn: ['roles'],
+        run: async () => {
+          throw boom;
+        },
+      },
+      writing('never-reached', { dependsOn: ['demo'] }),
+    ]);
+
+    const failure = await failureOf(runSeeds(config));
+
+    expect(failure.seed).toBe('demo');
+    expect(failure.rolledBack).toBe(true);
+    expect(failure.result.env).toBe('development');
+    // The whole point: resuming needs "roles is in, demo is not", without an onEvent
+    // accumulator duplicating what the runner already built.
+    expect(failure.result.outcomes).toEqual([
+      { name: 'roles', status: 'applied', durationMs: expect.any(Number) },
+      { name: 'demo', status: 'failed', error: boom, rolledBack: true },
+      // Nothing for never-reached: the run stopped, it was not skipped.
+    ]);
+  });
+
+  test('the throw keeps the seed error as its cause and in its message', async () => {
+    const boom = new Error('duplicate key value violates unique constraint');
+    const { config } = setup([
+      {
+        name: 'demo',
+        run: async () => {
+          throw boom;
+        },
+      },
+    ]);
+
+    const failure = await failureOf(runSeeds(config));
+
+    // Identity, not equality: a formatter reading Postgres fields off the error needs
+    // the driver's object, not a copy of its message.
+    expect(failure.cause).toBe(boom);
+    expect(failure.message).toContain('duplicate key value violates unique constraint');
+    expect(failure.message).toContain('demo');
+  });
+
+  test('a transaction: false failure reports that its writes are still there', async () => {
+    const { config } = setup([
+      {
+        name: 'bulk',
+        transaction: false,
+        run: async () => {
+          throw new Error('half way through');
+        },
+      },
+    ]);
+
+    const failure = await failureOf(runSeeds(config));
+
+    expect(failure.rolledBack).toBe(false);
+    expect(failure.result.outcomes[0]).toMatchObject({ status: 'failed', rolledBack: false });
+  });
+
+  test('a failure after a skip keeps the skip in the outcomes', async () => {
+    const { config } = setup([
+      writing('fake-users', { environments: ['test'] }),
+      {
+        name: 'demo',
+        run: async () => {
+          throw new Error('nope');
+        },
+      },
+    ]);
+
+    const failure = await failureOf(runSeeds(config));
+
+    expect(failure.result.outcomes.map((o) => o.status)).toEqual(['skipped', 'failed']);
+  });
+
   test('journal: false runs everything and records nothing', async () => {
     const { config, memory } = setup([writing('roles')]);
 
@@ -140,9 +232,38 @@ describe('runSeeds', () => {
 
     const result = await runSeeds(config, { dryRun: true });
 
-    expect(result.outcomes.map((o) => o.status)).toEqual(['applied', 'applied']);
+    expect(result.outcomes).toEqual([
+      { name: 'roles', status: 'would-run' },
+      { name: 'demo', status: 'would-run' },
+    ]);
     expect(memory.committed.writes).toEqual([]);
     expect(memory.committed.journal.size).toBe(0);
+  });
+
+  test('a dry run is distinguishable from a real one by the outcomes alone', async () => {
+    const { config } = setup([writing('roles')]);
+
+    const dry = await runSeeds(config, { dryRun: true });
+    const real = await runSeeds(config);
+
+    // The filter a caller reaches for first has to come back empty for the dry run.
+    expect(dry.outcomes.filter((o) => o.status === 'applied')).toEqual([]);
+    expect(real.outcomes.filter((o) => o.status === 'applied')).toHaveLength(1);
+    // And no duration is claimed for something that was never timed.
+    expect(dry.outcomes[0]).not.toHaveProperty('durationMs');
+  });
+
+  test('a dry run emits would-run events instead of applied ones', async () => {
+    const { config } = setup([writing('roles'), writing('demo', { dependsOn: ['roles'] })]);
+    const events: RunEvent[] = [];
+
+    await runSeeds(config, { dryRun: true, onEvent: (event) => events.push(event) });
+
+    expect(events).toEqual([
+      { type: 'plan', env: 'development', order: ['roles', 'demo'] },
+      { type: 'would-run', name: 'roles' },
+      { type: 'would-run', name: 'demo' },
+    ]);
   });
 
   test('skips seeds gated to another environment and says which', async () => {

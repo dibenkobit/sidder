@@ -5,7 +5,7 @@ import { parseArgs } from 'node:util';
 import { displayPath, loadConfigFile, type ResolvedConfig, resolveConfig } from '../config.ts';
 import { inspect } from '../inspect.ts';
 import { ensureJournal, forgetApplied } from '../journal.ts';
-import { runSeeds } from '../run.ts';
+import { runSeeds, SeedFailedError } from '../run.ts';
 import type { Config, RunEvent, SeedOutcome } from '../types.ts';
 import {
   CLEAR_LINE,
@@ -153,12 +153,6 @@ async function commandRun(
     resolved: { env },
   } = await open(values, { dryRun, force: values.force });
 
-  /**
-   * Remembered from the event, so the catch below can name the seed that threw.
-   * Held on an object rather than in a plain `let`: control-flow analysis narrows a
-   * local to `null` and never sees the assignment that happens inside the callback.
-   */
-  const state: { failure: { name: string; rolledBack: boolean } | null } = { failure: null };
   let pad = (name: string) => name;
   const write = (text: string) => {
     if (isInteractive) process.stdout.write(CLEAR_LINE);
@@ -175,8 +169,11 @@ async function commandRun(
         break;
       case 'applied':
         write(
-          `  ${style.green('✓')} ${pad(event.name)}  ${style.dim(dryRun ? 'would run' : formatDuration(event.durationMs))}`,
+          `  ${style.green('✓')} ${pad(event.name)}  ${style.dim(formatDuration(event.durationMs))}`,
         );
+        break;
+      case 'would-run':
+        write(`  ${style.green('✓')} ${pad(event.name)}  ${style.dim('would run')}`);
         break;
       case 'skipped':
         write(
@@ -184,7 +181,6 @@ async function commandRun(
         );
         break;
       case 'failed':
-        state.failure = { name: event.name, rolledBack: event.rolledBack };
         write(`  ${style.red('✗')} ${pad(event.name)}  ${style.red('failed')}`);
         break;
     }
@@ -201,32 +197,39 @@ async function commandRun(
       onEvent,
     });
 
-    const applied = result.outcomes.filter((o) => o.status === 'applied').length;
+    // A dry run's outcomes say `would-run` where a real run's say `applied`, and one
+    // result never holds both — so a single count is right either way, and the verb
+    // below is what says which of the two happened.
+    const ran = result.outcomes.filter(
+      (o) => o.status === 'applied' || o.status === 'would-run',
+    ).length;
     const skipped = result.outcomes.filter((o) => o.status === 'skipped').length;
     const verb = dryRun ? 'would apply' : 'applied';
     console.log('');
     console.log(
       style.dim(
-        `  ${applied} ${verb}, ${skipped} skipped in ${formatDuration(performance.now() - startedAt)}`,
+        `  ${ran} ${verb}, ${skipped} skipped in ${formatDuration(performance.now() - startedAt)}`,
       ),
     );
 
     // You named seeds and nothing happened. Say what to do about it.
-    const stale = applied > 0 || only === undefined ? [] : alreadyApplied(result.outcomes);
+    const stale = ran > 0 || only === undefined ? [] : alreadyApplied(result.outcomes);
     if (stale.length > 0) {
       console.log('');
       console.log(formatNothingSelected(stale));
     }
     return 0;
   } catch (error) {
-    // A seed threw. The runner already stopped and the transaction already resolved,
-    // so the useful report is which seed, why, and whether its writes survived.
-    const { failure } = state;
-    if (failure === null) throw error;
+    // A seed threw. The runner stopped there and the transaction already resolved, so the
+    // useful report is which seed, why, and whether its writes survived — all of which
+    // the throw carries. Anything else is a refusal to start and belongs to `formatError`.
+    if (!(error instanceof SeedFailedError)) throw error;
     console.log('');
     console.error(
-      formatSeedFailure(failure.name, error, {
-        rolledBack: failure.rolledBack,
+      // `error.cause`, not `error`: the fields worth printing — a driver's `detail`,
+      // `constraint` and `code` — are on the seed's own error, not on the wrapper.
+      formatSeedFailure(error.seed, error.cause, {
+        rolledBack: error.rolledBack,
         trace: values.trace,
       }),
     );
