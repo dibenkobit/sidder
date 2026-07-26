@@ -157,12 +157,15 @@ export class JournalTableMismatchError extends SidderError {
   }
 }
 
+const RUNTIME_GUIDE = 'https://github.com/dibenkobit/sidder/blob/main/docs/runtimes.md';
+
 const RUNTIME_CHOICES = [
   'sidder runs your seeds in its own process, so whatever launched sidder has to be able to import .ts.',
   'Pick one:',
   '  bun run --bun sidder run   # native TypeScript, honours tsconfig paths',
   '  Node >= 22.18          # native type stripping; use .mts, or "type": "module" with .ts',
-  '  a loader               # npm i -D tsx, then see README — Runtimes',
+  '  a loader               # npm i -D tsx',
+  `Runtime guide: ${RUNTIME_GUIDE}`,
 ];
 
 /**
@@ -182,7 +185,8 @@ export class ModuleFormatError extends SidderError {
         'Pick one:',
         '  rename TypeScript config and seed files from .ts to .mts',
         '  set "type": "module" in the nearest package.json',
-        '  run sidder through Bun or a TypeScript loader — see README — Runtimes',
+        '  run sidder through Bun or a TypeScript loader',
+        `Runtime guide: ${RUNTIME_GUIDE}`,
         '',
         `Original error: ${describe(cause)}`,
       ].join('\n'),

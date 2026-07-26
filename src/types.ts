@@ -22,7 +22,8 @@ export interface Scope<TDb = unknown> {
  * The whole surface sidder needs from your database library. Two members.
  *
  * Writing one by hand is about ten lines, and doing so is the recommended way to
- * understand what sidder does to your database. See README — "Write your own adapter".
+ * understand what sidder does to your database. See the custom adapter guide:
+ * https://github.com/dibenkobit/sidder/blob/main/docs/adapters.md#custom-adapter
  */
 export interface Adapter<TDb = unknown> {
   /** The scope outside of any transaction. */
@@ -55,7 +56,8 @@ export interface Adapter<TDb = unknown> {
  *
  * There is deliberately no `on-change`: it is a speed optimisation over `always`,
  * not a correctness feature, and hashing "did this seed's inputs change" correctly
- * means hashing a module graph rather than a file. See README — "Why no on-change".
+ * means hashing a module graph rather than a file. See the seed modes guide:
+ * https://github.com/dibenkobit/sidder/blob/main/docs/seeds.md#modes
  */
 export type SeedMode = 'once' | 'always';
 
@@ -103,7 +105,8 @@ export interface Seed<TDb = unknown> {
    * Set to `false` for bulk loads where one transaction would be too large — and
    * when wrapping legacy code that writes through an imported `db` global instead
    * of the `db` it is handed. Those writes escape the transaction silently, so the
-   * atomicity would be a lie. See README — "Wrapping seeds you already have".
+   * atomicity would be a lie. See the transactions guide:
+   * https://github.com/dibenkobit/sidder/blob/main/docs/seeds.md#transactions
    *
    * It costs more than atomicity. Two concurrent runs are kept off the same seed by a
    * lock held for the length of its transaction, and a seed with no transaction has
