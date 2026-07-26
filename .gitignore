@@ -6,6 +6,11 @@ out
 dist
 *.tgz
 
+# Agent worktrees. They are checkouts of this repo living inside it, so each one
+# carries its own biome.json and `biome check .` refuses to run with a nested root
+# config. Settings under .claude/ are still tracked deliberately.
+.claude/worktrees
+
 # code coverage
 coverage
 *.lcov

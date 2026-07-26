@@ -6,6 +6,7 @@ export {
   InvalidConfigError,
   InvalidSeedError,
   MissingDependencyError,
+  ModuleResolutionError,
   ModuleSyntaxError,
   NoSeedsFoundError,
   SowmeError,
