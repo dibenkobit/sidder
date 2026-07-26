@@ -113,9 +113,40 @@ export async function readJournalEntry(
 }
 
 /**
- * Takes an exclusive lock on one seed's name, held until the surrounding transaction ends.
+ * Asks for one seed's lock without waiting for it. True means this transaction has it now.
  *
- * This is what stops two `sowme run` processes from both applying the same seed. It is an
+ * The first half of {@link lockSeed}'s protocol, and it exists so that sowme can say it is
+ * waiting for another run only when it has been told that it is. Blocking straight away is
+ * silent — the symptom this splits the call in two to fix — and announcing a wait before
+ * every lock would announce one on every seed of every run, including the overwhelming
+ * majority that are contended by nobody. Asking and being refused is an observation; being
+ * about to ask is not.
+ *
+ * Anything other than an explicit `true` is read as "somebody else has it", which is the
+ * safe direction of the two. Being wrong that way costs one message and one extra
+ * statement, because {@link lockSeed} then grants immediately on a lock this transaction
+ * already holds; being wrong the other way would skip {@link lockSeed} and run the seed
+ * with no exclusion at all. The cost falls on an adapter whose driver hands a Postgres
+ * boolean back as text rather than as a boolean — pg and Drizzle both parse it — and it
+ * lands as a wait reported that is not happening, never as a lock that is not held.
+ */
+export async function tryLockSeed(scope: Scope, table: string, name: string): Promise<boolean> {
+  assertSafeTableName(table);
+  const rows = await scope.execute('select pg_try_advisory_xact_lock(hashtext($1), hashtext($2))', [
+    table,
+    name,
+  ]);
+
+  // `Scope.execute` promises rows and nothing about their shape, so the column is read by
+  // the name Postgres gives it — the function's own — and compared rather than coerced.
+  return rows[0]?.['pg_try_advisory_xact_lock'] === true;
+}
+
+/**
+ * Waits for one seed's lock, and holds it until the surrounding transaction ends.
+ *
+ * The blocking half, reached only once {@link tryLockSeed} has been refused. Together they
+ * are what stops two `sowme run` processes from both applying the same seed. It is an
  * advisory lock rather than a row or table lock because there is nothing to lock yet — the
  * whole question is whether the row should come into existence — and `_xact_` because that
  * variant releases on commit or rollback with nothing to unlock by hand. A session-level

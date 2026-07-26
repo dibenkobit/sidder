@@ -229,6 +229,27 @@ export function formatStatus(
     );
   }
 
+  // What the `no transaction` note above costs, which is more than the atomicity it is
+  // usually read as. A footnote rather than more words beside the seed: that column is two
+  // words wide and this is a paragraph, and the orphan block above is the precedent for
+  // putting a paragraph under the listing. It names no seeds because it does not have to —
+  // the ones it is about are the yellow ones a few lines up.
+  //
+  // Asked of the seeds this listing covers, for the same reason the environment warning
+  // below is: `--only` hides rows, and a footnote about a note nobody can see is noise.
+  if (selected.some((seed) => !seed.transaction)) {
+    lines.push('');
+    lines.push(style.yellow('  no transaction means more than lost atomicity:'));
+    for (const note of [
+      "a failure leaves the seed's writes in the database, and nothing keeps a second run",
+      'off it either — the lock that does that is held by a transaction, and there is none.',
+      'A journal re-read immediately before it runs narrows that gap; it cannot close it.',
+      'Set `transaction: true` if either matters.',
+    ]) {
+      lines.push(style.dim(`    ${note}`));
+    }
+  }
+
   lines.push('');
   lines.push(style.dim(`  order: ${inspection.order.join(' → ')}`));
 
@@ -442,6 +463,23 @@ function environmentOrigin(env: string, source: string): string {
 
   const where = source === 'config' ? '`env` in your config' : source;
   return `it came from ${where} — check it against that list`;
+}
+
+/**
+ * A seed another run got to first, printed while this one is queued behind it.
+ *
+ * The whole line rather than the note at the end of one, because the two places it prints
+ * want different things: on a terminal it replaces the `⋯` line and is replaced in turn,
+ * and in a pipeline it is a line of its own. `main.ts` chooses; the words are here.
+ *
+ * What it must not do is suggest intervening. The wait ends on its own the moment the
+ * other run commits or rolls back, and the only wrong response to seeing this is killing
+ * the process that printed it — so it names what is happening and says this run continues,
+ * and stops there. `name` arrives padded to the report's column, like every other line's.
+ */
+export function formatWaiting(name: string): string {
+  const note = 'waiting — another run is applying this seed; this one continues when it finishes';
+  return `  ${style.dim('⋯')} ${name}  ${style.dim(note)}`;
 }
 
 export function formatForgotten(results: readonly { name: string; forgotten: boolean }[]): string {

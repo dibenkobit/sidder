@@ -248,6 +248,74 @@ describeIf('against a real Postgres', () => {
       ).toMatchObject({ reason: { kind: 'already-applied' } });
     });
 
+    test('the run that loses the lock says it is waiting, and still only skips', async () => {
+      /**
+       * The defect the `waiting` event exists for, proved where it is the only thing that
+       * can be: a second process blocked on a lock the first one holds. Before it, that run
+       * printed `⋯ widgets` and then nothing for as long as the wait lasted, and in a
+       * pipeline printed nothing at all — a stuck deploy that looked exactly like a hang.
+       *
+       * A race, and deterministic anyway, with no sleep and no threshold in it. Whichever
+       * run wins the lock parks inside its seed until a `waiting` event has been seen, and
+       * it parks *holding* the lock — so the other run's attempt is certain to be refused,
+       * and certain to be refused before there is a committed journal row for it to find
+       * instead. Which of the two is which is still Postgres's business, so the assertions
+       * below read the roles off the outcomes rather than assuming them.
+       */
+      const events: RunEvent[][] = [[], []];
+      let sawWaiting = (): void => {};
+      const someoneIsWaiting = new Promise<void>((resolve) => {
+        sawWaiting = resolve;
+      });
+
+      const onEventFor = (index: number) => (event: RunEvent) => {
+        events[index]!.push(event);
+        if (event.type === 'waiting') sawWaiting();
+      };
+
+      const seeds: Seed<PgQueryable>[] = [
+        {
+          name: 'widgets',
+          run: async ({ db }) => {
+            // Only the run that took the lock gets here, and it is holding it.
+            await someoneIsWaiting;
+            await db.query("insert into widgets (label) values ('one')");
+          },
+        },
+      ];
+
+      const runs = await Promise.all([
+        runSeeds(configOf(seeds), { onEvent: onEventFor(0) }),
+        runSeeds(configOf(seeds), { onEvent: onEventFor(1) }),
+      ]);
+
+      const winner = runs.findIndex((run) => run.outcomes[0]?.status === 'applied');
+      expect(winner).toBeGreaterThanOrEqual(0);
+      const loser = 1 - winner;
+
+      expect(await countWidgets()).toBe(1);
+      expect(await journalNames()).toEqual(['widgets']);
+      expect(runs[loser]!.outcomes[0]).toMatchObject({
+        name: 'widgets',
+        status: 'skipped',
+        reason: { kind: 'already-applied' },
+      });
+
+      // Where the event lands is as much the point as that it lands: after the `⋯` line
+      // the report already prints, and instead of the silence that used to follow it.
+      expect(events[loser]!.map((event) => event.type)).toEqual([
+        'plan',
+        'start',
+        'waiting',
+        'skipped',
+      ]);
+      expect(events[loser]!).toContainEqual({ type: 'waiting', name: 'widgets' });
+
+      // And the run that waited for nobody says nothing about waiting, which is the whole
+      // reason the lock is asked for before it is waited on.
+      expect(events[winner]!.map((event) => event.type)).toEqual(['plan', 'start', 'applied']);
+    });
+
     test('two concurrent runs of a two-seed project apply each seed once, in order', async () => {
       const { bothPlanned, onEvent } = planBarrier(2);
 

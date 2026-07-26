@@ -19,6 +19,7 @@ import {
   formatSeedFailure,
   formatSkipReason,
   formatStatus,
+  formatWaiting,
   isInteractive,
   padder,
   style,
@@ -201,6 +202,17 @@ async function commandRun(
       case 'failed':
         write(`  ${style.red('✗')} ${pad(event.name)}  ${style.red('failed')}`);
         break;
+      case 'waiting': {
+        const line = formatWaiting(pad(event.name));
+        // On a terminal this takes over the `⋯` line and leaves no newline behind it, so
+        // the seed's own result replaces it in turn — the trick `write` plays, from the
+        // other side. In a pipeline there is no `⋯` line to take over and nothing that
+        // will come back and tidy up, and a run stuck here with nothing in the log is the
+        // defect this event exists for, so it prints a line and keeps it.
+        if (isInteractive) process.stdout.write(`${CLEAR_LINE}${line}`);
+        else console.log(line);
+        break;
+      }
     }
   };
 

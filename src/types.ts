@@ -235,7 +235,21 @@ export type RunEvent =
   /** Emitted in place of `applied` for every seed a dry run decided to run. */
   | { type: 'would-run'; name: string }
   | { type: 'skipped'; name: string; reason: SkipReason }
-  | { type: 'failed'; name: string; error: unknown; rolledBack: boolean };
+  | { type: 'failed'; name: string; error: unknown; rolledBack: boolean }
+  /**
+   * Another run holds this seed, so this one is queued behind it.
+   *
+   * Chronologically it belongs between `start` and whichever outcome the seed turns out
+   * to have; it is last in this union only so that appending it changed nothing above it.
+   *
+   * Emitted once the database has refused sowme the seed's lock, never merely because one
+   * is about to be asked for — `tryLockSeed` explains why that distinction is the whole
+   * point of the event. It needs no response: the wait ends when the other run commits or
+   * rolls back, and this run carries on by itself. A seed with `transaction: false` holds
+   * no lock and so never reports this, which is a gap `sowme status` states rather than
+   * papers over.
+   */
+  | { type: 'waiting'; name: string };
 
 /**
  * Every field is `| undefined` on purpose. This is an options bag assembled by a

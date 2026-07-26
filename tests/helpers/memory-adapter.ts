@@ -15,9 +15,10 @@ import type { Adapter, JournalEntry, Row, Scope } from '../../src/types.ts';
  *
  * What it deliberately does not model is one process observing another's commit. A staged
  * copy taken at `begin` is repeatable read, not read committed, and the advisory lock is a
- * no-op because there is nobody to exclude. So the per-seed lock and re-read are visible
- * here — `statements` records them, in order — but only postgres.test.ts can show them
- * doing their job.
+ * no-op because there is nobody to exclude — so the lock is always granted on the asking
+ * and the blocking statement behind that never gets issued. The per-seed lock and re-read
+ * are visible here — `statements` records them, in order — but only postgres.test.ts can
+ * show them doing their job.
  */
 
 export interface MemoryState {
@@ -88,9 +89,17 @@ function applyJournalStatement(state: MemoryState, sql: string, params: readonly
 
   if (statement.startsWith('create table')) return [];
 
-  // Nothing to exclude in one process, but it has to be answered rather than rejected,
-  // and tests that care assert it was issued before the seed ran.
-  if (statement.startsWith('select pg_advisory_xact_lock')) return [];
+  // Nothing to exclude in one process, so the lock is granted the moment it is asked for
+  // and `run.ts` never falls back to the blocking statement — which is why there is no
+  // branch for that one, and why nothing here can emit a `waiting` event.
+  //
+  // Shaped the way Postgres shapes it, a column named after the function, because that is
+  // what `tryLockSeed` reads; the generic `select` branch below would answer this in the
+  // shape of journal rows and any reading of that would be nonsense. Tests that care
+  // assert the statement was issued before the seed ran.
+  if (statement.startsWith('select pg_try_advisory_xact_lock')) {
+    return [{ pg_try_advisory_xact_lock: true }];
+  }
 
   if (statement.startsWith('select')) {
     // `where name = $1`: one seed's row, which is what the check inside a seed's own

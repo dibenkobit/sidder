@@ -7,6 +7,7 @@ import {
   readJournal,
   readJournalEntry,
   recordApplied,
+  tryLockSeed,
 } from './journal.ts';
 import { orderSeeds } from './order.ts';
 import { assertSelectionIsRunnable, type Decision, decide, decideFromJournal } from './plan.ts';
@@ -77,7 +78,8 @@ export class SeedFailedError extends Error {
  * Two of these at once — two replicas in a deploy, two jobs in one pipeline — do not
  * apply anything twice. The plan each of them prints is a forecast made from the journal
  * as it was; the ruling is made per seed, under a lock, against the row as it is. What
- * the loser reports is `skipped`, because that is what happened. The exception, and it is
+ * the loser reports is `skipped`, because that is what happened, and while it is queued
+ * behind the winner it emits `waiting` rather than going quiet. The exception, and it is
  * a real one, is `transaction: false`; `executeSeed` says why.
  */
 export async function runSeeds<TDb>(
@@ -152,6 +154,7 @@ export async function runSeeds<TDb>(
         journalTable: useJournal ? journalTable : null,
         force,
         startedAt,
+        emit,
       });
     } catch (error) {
       const rolledBack = seed.transaction !== false;
@@ -205,6 +208,8 @@ async function executeSeed<TDb>(
     journalTable: string | null;
     force: boolean;
     startedAt: number;
+    /** `runSeeds`'s own emitter, for the one event only this function can know about. */
+    emit: (event: RunEvent) => void;
   },
 ): Promise<Decision> {
   const record = async (scope: Scope<TDb>) => {
@@ -245,6 +250,10 @@ async function executeSeed<TDb>(
     // cannot catch two runs reaching this seed at the same moment. A seed that has given
     // up atomicity has given up exclusion with it; if that matters for yours, the answer
     // is `transaction: true` and a smaller seed.
+    //
+    // Nothing here ever emits `waiting` either. There is no lock to be refused, so there
+    // is nothing to observe and nothing honest to say at this point in the run — the gap
+    // gets said out loud where someone is asking about it instead, under `sowme status`.
     const decision = await reconsider(context.adapter.root);
     if (decision.action === 'skip') return decision;
 
@@ -258,8 +267,21 @@ async function executeSeed<TDb>(
     // and the point is to find out what they did rather than to do it as well. `always`
     // and forced seeds take it too — they will run anyway, and a seed serialised against
     // itself is a seed that cannot deadlock against its own second copy.
+    //
+    // Asked for without waiting first, then waited for, so that `waiting` is something
+    // sowme was told rather than something it assumed. Emitting it before an ordinary
+    // blocking lock — the shorter version of this — would claim a second run on every
+    // seed of every run, and a claim that is usually false is worse than the silence it
+    // replaces. The uncontended path costs the one statement it always did and emits
+    // nothing; the contended path costs one more and stops being invisible, which is the
+    // whole defect: a run blocked here printed nothing at all, and printed nothing at all
+    // in a pipeline whether or not the terminal was one.
     if (context.journalTable !== null) {
-      await lockSeed(scope, context.journalTable, seed.name);
+      const held = await tryLockSeed(scope, context.journalTable, seed.name);
+      if (!held) {
+        context.emit({ type: 'waiting', name: seed.name });
+        await lockSeed(scope, context.journalTable, seed.name);
+      }
     }
 
     const decision = await reconsider(scope);

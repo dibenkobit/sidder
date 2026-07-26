@@ -4,6 +4,7 @@ import {
   formatNothingApplied,
   formatNotSelected,
   formatStatus,
+  formatWaiting,
 } from '../src/cli/format.ts';
 import type { Inspection, SeedStatus } from '../src/inspect.ts';
 import type { SeedOutcome } from '../src/types.ts';
@@ -203,6 +204,43 @@ describe('formatStatus', () => {
     expect(report).toContain('demo imports territory');
     expect(report).toContain('seedTerritory');
   });
+
+  test('spells out what a seed with no transaction gave up besides atomicity', () => {
+    const report = plain(
+      formatStatus(inspection([seed('roles'), seed('bulk', { transaction: false })])),
+    );
+    // The footnote is wrapped to a terminal, and where it wraps is not what this is about.
+    const prose = report.replace(/\s+/g, ' ');
+
+    expect(prose).toContain('no transaction means more than lost atomicity');
+    // The half the two-word note never said: no transaction is no lock either, so the one
+    // seed sowme cannot keep a concurrent run out of is the one that says `no transaction`.
+    expect(prose).toContain('nothing keeps a second run off it');
+    expect(prose).toContain('Set `transaction: true` if either matters.');
+  });
+
+  test('says nothing about transactions when every seed has one', () => {
+    expect(plain(formatStatus(inspection([seed('roles')])))).not.toContain('no transaction');
+  });
+
+  test('drops the footnote when --only hid the seed it was about', () => {
+    // Same rule as the environment warning: the notes under a listing are only as wide as
+    // the listing, and a footnote explaining a row nobody can see explains nothing.
+    const report = plain(
+      formatStatus(
+        inspection([
+          seed('roles'),
+          seed('bulk', {
+            transaction: false,
+            decision: { action: 'skip', reason: { kind: 'not-selected' } },
+          }),
+        ]),
+        { only: ['roles'] },
+      ),
+    );
+
+    expect(report).not.toContain('no transaction');
+  });
 });
 
 describe('formatCrossImports', () => {
@@ -261,6 +299,20 @@ describe('formatCrossImports', () => {
     );
 
     expect(block).toContain('demo imports territory  — no bindings named');
+  });
+});
+
+describe('formatWaiting', () => {
+  test('names the seed, says who has it, and says this run continues by itself', () => {
+    expect(plain(formatWaiting('widgets'))).toBe(
+      '  ⋯ widgets  waiting — another run is applying this seed; this one continues when it finishes',
+    );
+  });
+
+  test('ends without a newline, so the result that follows can replace it in place', () => {
+    // `main.ts` writes this line raw on a terminal and lets `CLEAR_LINE` overwrite it when
+    // the wait ends. A newline of its own would leave it stranded above the result.
+    expect(formatWaiting('widgets')).not.toContain('\n');
   });
 });
 
