@@ -1,6 +1,6 @@
 # sidder
 
-A seed runner.
+A seed runner for Postgres.
 
 > Migrations got a runner fifteen years ago. Seeds never did — even though it is the
 > same task: an ordered set of steps that change the state of a database.
@@ -9,45 +9,72 @@ Migrations have a discovery convention, an inferred order, a record of what has 
 applied, one entry point, a `status` command and a single process. Seeds have a folder
 of scripts and a `&&`-chain in `package.json` that somebody maintains by hand.
 
+sidder discovers seed files, orders them from declared dependencies, runs each in a
+transaction, and records the result in the same transaction. `status` shows the complete
+plan before you trust it with a database.
+
+## Requirements
+
+- Postgres.
+- Node 22.18 or newer, Bun, or Node with a TypeScript loader.
+- An existing node-postgres Pool or Drizzle instance. sidder does not create a second
+  database client.
+
+The quickstart uses node-postgres. [Adapters](#adapters) and the
+[runtime matrix](#runtimes) are documented below.
+
+## Quickstart
+
+### 1. Install
+
 ```bash
 npm i -D sidder
 ```
 
-**Status: 0.1, not on npm yet.** Until it is published, install it from git with npm,
-pnpm or yarn:
+sidder is a local development dependency, so run its binary through your package manager:
+
+| Package manager | Install | Command prefix |
+|---|---|---|
+| npm | `npm i -D sidder` | `npx sidder` |
+| pnpm | `pnpm add -D sidder` | `pnpm exec sidder` |
+| Yarn | `yarn add -D sidder` | `yarn sidder` |
+| Bun | `bun add -d sidder` | `bun run --bun sidder` |
+
+Commands below use npm. Substitute the prefix from the table if your project uses
+something else.
+
+### 2. Create the config
 
 ```bash
-npm i -D github:dibenkobit/sidder
+npx sidder init
 ```
 
-Not with `bun add`, and this is bun's limitation rather than a missing script here: bun
-does not run an installed dependency's `prepare`, and does not install the
-devDependencies that building it would need
-([oven-sh/bun#16548](https://github.com/oven-sh/bun/issues/16548)). You would get a
-package with no `dist/`. Bun installs the published tarball perfectly well, because that
-one arrives already built — so this stops being true the moment 0.1 is on npm.
+This writes `sidder.config.mts`. It chooses the pg or Drizzle adapter from your
+`package.json` and prints the evidence for that choice. It does not guess where your
+database handle lives: the generated import is visibly marked as a placeholder.
 
-Postgres, Drizzle and node-postgres. Working and tested, including against a real
-database — but young. See [Not done yet](#not-done-yet).
-
----
-
-## Seed one table
+Point that import at the Pool you already have. A complete pg config looks like this:
 
 ```ts
-// sidder.config.ts
+// sidder.config.mts
 import { defineConfig } from 'sidder';
 import { pgAdapter } from 'sidder/adapters/pg';
-import { pool } from './src/db/index.ts';
+import { pool } from './src/db/index.mts';
 
 export default defineConfig({
   adapter: pgAdapter(pool),
-  seeds: 'seeds/*.ts',
+  seeds: 'seeds/**/*.mts',
 });
 ```
 
+Use the real extension of your database module. Node requires it. If the module is
+TypeScript but is not directly loadable by Node, use Bun or your project's TypeScript
+loader; the [runtime matrix](#runtimes) explains the trade-offs.
+
+### 3. Seed one table
+
 ```ts
-// seeds/roles.ts
+// seeds/roles.mts
 import { defineSeed } from 'sidder';
 
 export default defineSeed({
@@ -57,12 +84,23 @@ export default defineSeed({
 });
 ```
 
+This example assumes the `roles` table already exists. Migrations still own schema;
+sidder owns data.
+
+### 4. Inspect, rehearse, run
+
 ```bash
-$ sidder run
+npx sidder status
+npx sidder run --dry-run
+npx sidder run
 ```
 
-That is three things to know: the config, `defineSeed`, and the `db` you are handed.
-Everything below is optional and you learn it when you hit the need for it.
+`status` creates the journal table if it does not exist, but never runs a seed. `--dry-run`
+performs discovery, validation, ordering and journal decisions without writing anything.
+The final command applies the seed.
+
+That is the whole authoring model: the config, `defineSeed`, and the `db` handed to
+`run`. Everything below is optional and learned when the need appears.
 
 `defineSeed` is an identity function — it returns its argument and does nothing else.
 It exists so your editor can autocomplete the fields, and so a typo in one is a compile
@@ -73,8 +111,8 @@ error rather than silence.
 ## What one run looks like
 
 ```
-$ sidder run
-sidder 0.1.0  ·  sidder.config.ts  ·  env development (NODE_ENV)  ·  journal sidder_journal
+$ npx sidder run
+sidder 0.1.0  ·  sidder.config.mts  ·  env development (NODE_ENV)  ·  journal sidder_journal
 
   ✓ roles         7ms
   ✓ territory     5ms
@@ -86,7 +124,7 @@ sidder 0.1.0  ·  sidder.config.ts  ·  env development (NODE_ENV)  ·  journal 
 ```
 
 ```
-$ sidder status
+$ npx sidder status
   ✓ roles         applied 2026-07-26  always
   ✓ territory     applied 2026-07-26
   ✓ demo          applied 2026-07-26  after territory, roles
@@ -255,14 +293,14 @@ better than a promise sidder cannot keep.
 ## Running it
 
 ```bash
-sidder run                                  # everything not yet applied, in order
-sidder run --env production                 # environment gates apply
-sidder run --only roles,territory           # exactly these
-sidder run --dry-run                        # decide everything, execute nothing
-sidder status                               # what has run, what would, in what order
-sidder status --json                        # the same, for scripts and agents
-sidder forget demo                          # drop journal rows so their seeds run again
-sidder init                                 # write a starting config
+npx sidder run                                  # everything not yet applied, in order
+npx sidder run --env production                 # environment gates apply
+npx sidder run --only roles,territory           # exactly these
+npx sidder run --dry-run                        # decide everything, execute nothing
+npx sidder status                               # what has run, what would, in what order
+npx sidder status --json                        # the same, for scripts and agents
+npx sidder forget demo                          # drop journal rows so their seeds run again
+npx sidder init                                 # write a starting config
 ```
 
 `--only` runs exactly what you name. It does **not** pull dependencies in — if
@@ -277,8 +315,8 @@ seconds ago.
 editor. It ran, you changed a line, and the journal now says there is nothing to do.
 
 ```bash
-sidder run --only demo --force   # apply it again, journal or not
-sidder forget demo               # drop its row, then run normally
+npx sidder run --only demo --force   # apply it again, journal or not
+npx sidder forget demo               # drop its row, then run normally
 ```
 
 `--force` defeats the journal and nothing else: `environments` still applies, because
@@ -429,16 +467,20 @@ Two exceptions, both honest:
 
 ## Runtimes
 
-sidder runs your seeds in its own process — one process, one connection — so the runtime
-you launch it with is the one that has to read TypeScript. It ships **no loader** and
-has **no runtime dependencies**:
+sidder runs your seeds in its own process, one seed at a time, so the runtime you launch
+it with is the one that has to read TypeScript. It ships no loader:
 
 | Runtime | TypeScript | `tsconfig` paths |
 |---|---|---|
-| `bun --bun sidder run` | native | yes |
-| Node >= 22.18 | native type stripping | no |
-| `node --import tsx …/sidder run` | via tsx | yes |
+| `bun run --bun sidder run` | native | yes |
+| `npx sidder run` on Node >= 22.18 | native type stripping | no |
+| `node --import=tsx ./node_modules/sidder/dist/cli/main.js run` | via tsx | yes |
 | Node < 22.18, no loader | no — sidder says so, and what to do about it | — |
+
+Node's native type stripping does not transform enums, parameter properties or
+`tsconfig` path aliases. It also determines `.ts` module format from `package.json`;
+`.mts` is always ESM, which is why `init` generates it. Install `tsx` or use Bun when
+your project needs the rest of TypeScript.
 
 ---
 

@@ -160,7 +160,7 @@ export class JournalTableMismatchError extends SidderError {
 const RUNTIME_CHOICES = [
   'sidder runs your seeds in its own process, so whatever launched sidder has to be able to import .ts.',
   'Pick one:',
-  '  bun --bun sidder run   # native TypeScript, honours tsconfig paths',
+  '  bun run --bun sidder run   # native TypeScript, honours tsconfig paths',
   '  Node >= 22.18          # native type stripping; use .mts, or "type": "module" with .ts',
   '  a loader               # npm i -D tsx, then see README — Runtimes',
 ];
@@ -310,7 +310,7 @@ function adviceLines({ specifier, importer, directory }: Resolution): string[] {
     const aPackage = ['  A package — install it where the importing file can see it.'];
     const anAlias = [
       "  An alias — sidder imports with the runtime it was launched with, and Node's type",
-      '  stripping does not read tsconfig paths. Bun does (`bun --bun sidder run`), and a',
+      '  stripping does not read tsconfig paths. Bun does (`bun run --bun sidder run`), and a',
       '  relative path works under both.',
     ];
     // `@/db` has no scope name, so it cannot be a package: npm has no such thing. When the
