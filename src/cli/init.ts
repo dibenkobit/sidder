@@ -53,14 +53,7 @@ export function runInit(cwd: string, force: boolean): { path: string; message: s
       `Next, point the ${style.bold(PLACEHOLDER)} import at the database handle you already have.`,
       'That path is a placeholder, not somewhere sidder looked. Then write a seed:',
       '',
-      style.dim('  // seeds/roles.mts'),
-      style.dim("  import { defineSeed } from 'sidder';"),
-      style.dim(''),
-      style.dim('  export default defineSeed({'),
-      style.dim('    async run({ db }) {'),
-      style.dim('      // your existing seeding code, unchanged'),
-      style.dim('    },'),
-      style.dim('  });'),
+      ...SEED_EXAMPLES[flavour].map((line) => style.dim(`  ${line}`)),
       '',
       `Then ${style.bold('npx sidder status')} to see what it would do.`,
       style.dim('For pnpm, Yarn, and Bun, see the package-manager commands in the README.'),
@@ -116,4 +109,29 @@ export default defineConfig({
   seeds: 'seeds/**/*.mts',
 });
 `,
+};
+
+const SEED_EXAMPLES: Record<Flavour, string[]> = {
+  pg: [
+    '// seeds/roles.mts',
+    "import { defineSeed } from 'sidder';",
+    "import type { PgQueryable } from 'sidder/adapters/pg';",
+    '',
+    'export default defineSeed<PgQueryable>({',
+    '  async run({ db }) {',
+    '    // db is a Pool or the transaction-scoped PoolClient',
+    '  },',
+    '});',
+  ],
+  drizzle: [
+    '// seeds/roles.mts',
+    "import { defineSeed } from 'sidder';",
+    "import type { db } from '../src/db/index.mts'; // use your real database module",
+    '',
+    'export default defineSeed<typeof db>({',
+    '  async run({ db }) {',
+    '    // db has your Drizzle query builders',
+    '  },',
+    '});',
+  ],
 };

@@ -6,8 +6,9 @@ exists for type inference and autocomplete.
 ```ts
 // seeds/roles.mts
 import { defineSeed } from 'sidder';
+import type { PgQueryable } from 'sidder/adapters/pg';
 
-export default defineSeed({
+export default defineSeed<PgQueryable>({
   name: 'roles',
   dependsOn: ['permissions'],
   environments: ['development', 'staging'],
@@ -48,6 +49,43 @@ interface SeedContext<TDb> {
 With the default transaction, `db` is the transaction-scoped handle. With
 `transaction: false`, it is the adapter's root handle. `env` and `name` are the resolved
 values printed by the CLI.
+
+## Typing `db`
+
+A seed file is loaded independently from the config, so TypeScript cannot infer its
+database type from `config.adapter`. Pass that type to `defineSeed`.
+
+For node-postgres, sidder exports the exact common shape of a Pool and transactional
+PoolClient:
+
+```ts
+import { defineSeed } from 'sidder';
+import type { PgQueryable } from 'sidder/adapters/pg';
+
+export default defineSeed<PgQueryable>({
+  async run({ db }) {
+    await db.query('insert into roles (name) values ($1)', ['admin']);
+  },
+});
+```
+
+For Drizzle, take the type of the existing instance with a type-only import. The import
+is erased and does not initialize a second database connection:
+
+```ts
+import { defineSeed } from 'sidder';
+import type { db } from '../src/db/index.mts';
+
+export default defineSeed<typeof db>({
+  async run({ db }) {
+    await db.insert(roles).values({ name: 'admin' });
+  },
+});
+```
+
+Import the schema value normally; only the database handle import needs to be
+type-only. Inside a transaction, Drizzle supplies its transaction object. Query builders
+are available, but root-only driver properties such as `$client` are not.
 
 ## Names
 

@@ -91,9 +91,10 @@ Seeds keep using the same query builders:
 
 ```ts
 import { defineSeed } from 'sidder';
+import type { db } from '../src/db/index.mts';
 import { roles } from '../src/db/schema.mts';
 
-export default defineSeed({
+export default defineSeed<typeof db>({
   async run({ db }) {
     await db.insert(roles).values({ name: 'admin' });
   },

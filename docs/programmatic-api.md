@@ -14,6 +14,9 @@ import { drizzleAdapter } from 'sidder/adapters/drizzle';
 Both are identity functions. They return the object passed in and exist for generic
 inference, autocomplete and excess-property checking.
 
+For seed files discovered separately from the config, pass the adapter's database type
+explicitly so `ctx.db` is not `unknown`. See [Typing `db`](seeds.md#typing-db).
+
 ## `runSeeds`
 
 ```ts

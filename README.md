@@ -75,8 +75,9 @@ Use the real extension of your database module. Node requires it.
 ```ts
 // seeds/roles.mts
 import { defineSeed } from 'sidder';
+import type { PgQueryable } from 'sidder/adapters/pg';
 
-export default defineSeed({
+export default defineSeed<PgQueryable>({
   async run({ db }) {
     await db.query("insert into roles (name) values ('admin')");
   },
@@ -98,8 +99,12 @@ performs discovery, validation, ordering and journal decisions without creating 
 journal or writing anything. The final command applies the seed.
 
 That is the whole authoring model: one config, `defineSeed`, and the `db` handed to
-`run`. `defineSeed` is an identity function; it exists for editor inference and
-compile-time checking.
+`run`. The `PgQueryable` type makes that handle type-safe without coupling the seed to a
+specific Pool class. The [seed guide](docs/seeds.md#typing-db) shows the equivalent for
+Drizzle.
+
+`defineSeed` is an identity function; it exists for editor inference and compile-time
+checking.
 
 ## What a run tells you
 

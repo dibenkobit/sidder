@@ -7,6 +7,10 @@ import type { Config, Seed } from './types.ts';
  * effects — you can delete the call and add `satisfies Seed` instead and sidder will
  * behave identically. It is here because autocomplete on the fields is worth one import,
  * and because a typo in a field name should be a compile error rather than silence.
+ *
+ * A discovered seed lives in a different module from its config, so TypeScript cannot
+ * infer its database type from the adapter. Pass it explicitly: `defineSeed<PgQueryable>`
+ * or `defineSeed<typeof db>`. Inline seeds can inherit the config's contextual type.
  */
 export function defineSeed<TDb = unknown>(seed: Seed<TDb>): Seed<TDb> {
   return seed;

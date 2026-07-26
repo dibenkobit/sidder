@@ -30,6 +30,8 @@ describe('runInit', () => {
     expect(config).toContain("from './src/db/index.mts'");
     expect(config).toContain("seeds: 'seeds/**/*.mts'");
     expect(result.message).toContain('seeds/roles.mts');
+    expect(result.message).toContain("import type { PgQueryable } from 'sidder/adapters/pg'");
+    expect(result.message).toContain('defineSeed<PgQueryable>');
     expect(result.message).toContain('npx sidder status');
   });
 
@@ -41,6 +43,8 @@ describe('runInit', () => {
 
     expect(config).toContain("from 'sidder/adapters/drizzle'");
     expect(message).toContain('drizzle-orm is in your package.json');
+    expect(message).toContain("import type { db } from '../src/db/index.mts'");
+    expect(message).toContain('defineSeed<typeof db>');
   });
 
   test('does not create a competing config when a supported one already exists', () => {
