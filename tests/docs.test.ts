@@ -5,7 +5,9 @@ import { dirname, join, resolve } from 'node:path';
 const ROOT = join(import.meta.dir, '..');
 const DOCS_DIR = join(ROOT, 'docs');
 const DOC_FILES = [
-  join(ROOT, 'README.md'),
+  ...['README.md', 'CONTRIBUTING.md', 'SECURITY.md', 'SUPPORT.md', 'CODE_OF_CONDUCT.md'].map(
+    (file) => join(ROOT, file),
+  ),
   ...readdirSync(DOCS_DIR)
     .filter((file) => file.endsWith('.md'))
     .sort()

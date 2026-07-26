@@ -18,6 +18,10 @@ an installed package to a seed that has run. Come here when you need the exact c
 
 ## Project information
 
+- [Current limitations and support policy](../SUPPORT.md)
+- [Contributing](../CONTRIBUTING.md)
+- [Security policy](../SECURITY.md)
+- [Code of Conduct](../CODE_OF_CONDUCT.md)
 - [Changelog](../CHANGELOG.md)
 
 These files describe the current branch. TypeScript declarations in the package are the

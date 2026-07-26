@@ -1,0 +1,36 @@
+name: Documentation problem
+description: Report something missing, stale or hard to understand
+title: "docs: "
+labels:
+  - documentation
+body:
+  - type: input
+    id: location
+    attributes:
+      label: Location
+      description: Link the page or name the command/help text.
+    validations:
+      required: true
+  - type: textarea
+    id: goal
+    attributes:
+      label: What were you trying to do?
+    validations:
+      required: true
+  - type: textarea
+    id: unclear
+    attributes:
+      label: What was missing or unclear?
+      description: Quote the smallest relevant phrase when possible.
+    validations:
+      required: true
+  - type: textarea
+    id: learned
+    attributes:
+      label: What answer did you eventually find?
+      description: This helps turn the issue into a concrete correction.
+  - type: input
+    id: version
+    attributes:
+      label: sidder version
+      placeholder: "0.1.0"

@@ -1,0 +1,50 @@
+name: Feature request
+description: Propose a user problem sidder should solve
+title: "feat: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Start with the user problem. API and CLI shapes are easier to evaluate after the required experience is clear.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What task is difficult or unsafe today? Who encounters it?
+    validations:
+      required: true
+  - type: textarea
+    id: experience
+    attributes:
+      label: Desired experience
+      description: Show the command, config or seed code you would want to write and the output you would expect.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: How do you solve this today, and why is that insufficient?
+    validations:
+      required: true
+  - type: textarea
+    id: concepts
+    attributes:
+      label: Complexity cost
+      description: Does this add a concept every user must learn, a dependency, or a public API commitment?
+  - type: textarea
+    id: consequences
+    attributes:
+      label: Database and compatibility consequences
+      description: Consider transactions, journal history, concurrent runs and existing configs.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues and documentation.
+          required: true
+        - label: I described the problem independently of my proposed implementation.
+          required: true

@@ -185,6 +185,10 @@ bun run test:pg
 bun run check
 ```
 
+Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) before changing a
+public contract, and use [SUPPORT.md](SUPPORT.md) for issue routing and version policy.
+Report vulnerabilities through the private process in [SECURITY.md](SECURITY.md).
+
 See the [changelog](CHANGELOG.md) for released changes.
 
 MIT licensed. See [LICENSE](LICENSE).

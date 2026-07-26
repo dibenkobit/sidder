@@ -162,4 +162,5 @@ Also include:
 - whether the same command behaves differently under `--dry-run`;
 - a minimal config and seed if possible.
 
-When filing the issue, keep the runtime and transaction-aftermath details above together.
+Use the repository's bug report form so the runtime and transaction-aftermath details are
+kept together.

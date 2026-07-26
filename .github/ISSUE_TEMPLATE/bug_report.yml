@@ -1,0 +1,79 @@
+name: Bug report
+description: Report reproducible incorrect behavior
+title: "bug: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for making sidder better. Remove credentials, connection strings and production data.
+        For suspected vulnerabilities, stop and follow SECURITY.md instead.
+  - type: input
+    id: version
+    attributes:
+      label: sidder version
+      description: Paste the output of `npx sidder --version`.
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: input
+    id: runtime
+    attributes:
+      label: Runtime and package manager
+      description: Include Node or Bun version, package manager and operating system.
+      placeholder: "Node 22.18.0, npm 11, macOS 15"
+    validations:
+      required: true
+  - type: input
+    id: database
+    attributes:
+      label: Adapter and database
+      description: Include pg or Drizzle version and PostgreSQL version when known.
+      placeholder: "pg 8.16, PostgreSQL 16"
+    validations:
+      required: true
+  - type: input
+    id: command
+    attributes:
+      label: Exact command
+      placeholder: "npx sidder run --dry-run --env staging"
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Show the smallest config and seed needed to reproduce the problem.
+      render: typescript
+    validations:
+      required: true
+  - type: textarea
+    id: observed
+    attributes:
+      label: What happened?
+      description: Include the complete error and its hint. Say what committed or rolled back.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What should have happened?
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Additional diagnostics
+      description: Does `status` or `run --dry-run` behave differently? Add sanitized logs here.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues and the troubleshooting guide.
+          required: true
+        - label: I removed credentials, connection strings and production data.
+          required: true
+        - label: This is not a security vulnerability.
+          required: true
