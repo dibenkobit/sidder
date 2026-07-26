@@ -136,6 +136,23 @@ quote open wastes their day.
 because it is an options bag a CLI assembles from absent flags. The domain types (`Seed`,
 `Config`) do not, and should not.
 
+## Distribution
+
+`prepare` is `tsc -p tsconfig.build.json` and **not** `bun run build`, on purpose. It runs
+on a consumer's machine during a git install, where neither bun nor npm is guaranteed to
+exist as a binary — `tsc` resolves from `node_modules/.bin`, which is on PATH for any
+package manager. It also drops the `chmod`, which npm's own bin-linking does anyway and
+which does not exist on Windows.
+
+That fixes git installs for npm, pnpm and yarn. It does **not** fix `bun add github:…`:
+bun does not run an installed dependency's lifecycle scripts, and does not install the
+devDependencies `prepare` would need (oven-sh/bun#16548, open). Publishing to npm is the
+real fix, because a published tarball ships `dist/` already built and needs no consumer
+build at all. Do not "solve" this by committing `dist/`.
+
+CI proves the artifact, not just the source: the `package` job installs the packed tarball
+into a project that has never seen this repo and runs the CLI on the oldest supported Node.
+
 ## Commits
 
 Conventional Commits: `type(scope): subject`. Imperative, lowercase, no trailing period,

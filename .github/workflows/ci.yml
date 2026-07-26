@@ -1,0 +1,82 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A second push to the same branch makes the first one's answer worthless.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    # Mapped to 55432 rather than 5432 so `bun run test:pg` — the exact command in
+    # the README — is also the command CI runs. One less thing that can drift.
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: sowme
+          POSTGRES_PASSWORD: sowme
+          POSTGRES_DB: sowme
+        ports: ['55432:5432']
+        options: >-
+          --health-cmd "pg_isready -U sowme"
+          --health-interval 1s
+          --health-timeout 3s
+          --health-retries 30
+
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+
+      - run: bun run lint
+      - run: bun run typecheck
+
+      # Twice on purpose. Without the URL the Postgres suite skips itself, which is
+      # what every contributor's first `bun test` does and therefore has to keep working.
+      - name: test (no database)
+        run: bun test
+      - name: test (against Postgres)
+        run: bun run test:pg
+
+  # Proves the thing users actually get. `bun test` runs src/; this runs the tarball
+  # that would be published, on the oldest Node the package claims to support.
+  package:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22', '24']
+
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: pack
+        run: npm pack --pack-destination /tmp
+
+      - name: install the tarball into a project that has never seen this repo
+        run: |
+          mkdir /tmp/app && cd /tmp/app
+          npm init -y >/dev/null
+          npm install /tmp/sowme-*.tgz
+
+      # No database needed: this exercises the bin shim, the shebang, the exports map
+      # and the TypeScript loader — every way the published layout can be wrong.
+      - name: the CLI runs on Node ${{ matrix.node }}
+        working-directory: /tmp/app
+        run: |
+          ./node_modules/.bin/sowme --version
+          ./node_modules/.bin/sowme init
+          test -f sowme.config.ts

@@ -13,8 +13,22 @@ of scripts and a `&&`-chain in `package.json` that somebody maintains by hand.
 npm i -D sowme
 ```
 
-**Status: 0.1.** Postgres, Drizzle and node-postgres. Working and tested, including
-against a real database — but young. See [Not done yet](#not-done-yet).
+**Status: 0.1, not on npm yet.** Until it is published, install it from git with npm,
+pnpm or yarn:
+
+```bash
+npm i -D github:dibenkobit/sowme
+```
+
+Not with `bun add`, and this is bun's limitation rather than a missing script here: bun
+does not run an installed dependency's `prepare`, and does not install the
+devDependencies that building it would need
+([oven-sh/bun#16548](https://github.com/oven-sh/bun/issues/16548)). You would get a
+package with no `dist/`. Bun installs the published tarball perfectly well, because that
+one arrives already built — so this stops being true the moment 0.1 is on npm.
+
+Postgres, Drizzle and node-postgres. Working and tested, including against a real
+database — but young. See [Not done yet](#not-done-yet).
 
 ---
 
