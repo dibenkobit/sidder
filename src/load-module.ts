@@ -1,5 +1,10 @@
 import { pathToFileURL } from 'node:url';
-import { ModuleResolutionError, ModuleSyntaxError, TypeScriptLoaderError } from './errors.ts';
+import {
+  isParseFailure,
+  ModuleResolutionError,
+  ModuleSyntaxError,
+  TypeScriptLoaderError,
+} from './errors.ts';
 
 /**
  * `await import()`, with three failures answered properly.
@@ -27,16 +32,27 @@ export async function importModule(file: string): Promise<Record<string, unknown
       throw new ModuleResolutionError(file, error);
     }
 
-    if (!isTypeScriptFile(file)) throw error;
-
-    // Node with no type stripping refuses the extension; Node with type stripping
-    // refuses syntax it cannot erase (enums, namespaces, parameter properties).
-    if (code === 'ERR_UNKNOWN_FILE_EXTENSION' || code === 'ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX') {
+    // Then these two, which are also reported as syntax errors and are not one: Node with
+    // no type stripping refuses the extension, and Node with type stripping refuses syntax
+    // it cannot erase (enums, namespaces, parameter properties). Both mean the runtime
+    // rather than the file, which is why the extension is consulted here and only here —
+    // the advice they carry is about reading `.ts` at all. Consulting it any earlier would
+    // send a `sowme.config.js` with a stray quote away with no answer.
+    if (
+      isTypeScriptFile(file) &&
+      (code === 'ERR_UNKNOWN_FILE_EXTENSION' || code === 'ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX')
+    ) {
       throw new TypeScriptLoaderError(file, error);
     }
-    if (error instanceof SyntaxError) {
+
+    // Whether the parser rejected the file is a question about what was thrown, not about
+    // what the file is called: a `sowme.config.js` with a stray quote arrives here exactly
+    // as a seed does. `isParseFailure` is careful about the other half of that question —
+    // a module that compiled, ran, and threw must not land here.
+    if (isParseFailure(error)) {
       throw new ModuleSyntaxError(file, error);
     }
+
     throw error;
   }
 }

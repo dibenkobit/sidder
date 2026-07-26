@@ -120,6 +120,35 @@ export class UnsafeTableNameError extends SowmeError {
   }
 }
 
+/**
+ * The name in `journalTable` belongs to a table that is not a journal.
+ *
+ * `create table if not exists` is perfectly happy to find somebody else's table sitting
+ * under the name, so a typo or a collision with an application table gets no complaint
+ * until the first read, which fails as `column "applied_at" does not exist` — naming
+ * neither the table nor the setting that chose it. This says both.
+ */
+export class JournalTableMismatchError extends SowmeError {
+  constructor(table: string, expected: readonly string[], found: readonly string[]) {
+    const missing = expected.filter((column) => !found.includes(column));
+
+    super(
+      `Table "${table}" exists but is not sowme's journal`,
+      [
+        `It has ${found.join(', ')}. A journal has ${expected.join(', ')}.`,
+        // Spelled out only when the two lists overlap, which is a journal whose columns
+        // have drifted rather than somebody else's table. When nothing matches, the two
+        // lists above already say so and repeating them adds a line and no fact.
+        ...(missing.length < expected.length ? [`Missing: ${missing.join(', ')}.`] : []),
+        `\`journalTable\` is what chose this name. Point it at a name of sowme's own — the`,
+        `default is \`sowme_journal\`, and sowme creates the table itself, so the name only`,
+        `has to be free.`,
+      ].join('\n'),
+    );
+    this.name = 'JournalTableMismatchError';
+  }
+}
+
 const RUNTIME_CHOICES = [
   'sowme runs your seeds in its own process, so whatever launched sowme has to be able to import .ts.',
   'Pick one:',
@@ -156,10 +185,11 @@ export class TypeScriptLoaderError extends SowmeError {
  */
 export class ModuleSyntaxError extends SowmeError {
   constructor(file: string, cause: unknown) {
-    const location = locationOf(cause);
+    const parsed = parseFailureOf(cause);
+    const location = parsed?.location ?? null;
 
     super(
-      `Could not parse ${location ?? file}: ${describe(cause)}`,
+      `Could not parse ${location ?? file}: ${parsed?.message ?? describe(cause)}`,
       [
         ...(location && !location.startsWith(file) ? [`Reached while importing ${file}.`, ''] : []),
         'Fix the syntax above.',
@@ -370,6 +400,93 @@ function looksLikeAlias(specifier: string): boolean {
  */
 function isConfigFile(file: string): boolean {
   return basename(file).startsWith('sowme.config.');
+}
+
+/**
+ * Whether this is a module that did not compile, as opposed to one that ran and threw.
+ *
+ * The distinction is the whole reason this is a function rather than an `instanceof`
+ * check, and getting it backwards is expensive in both directions. A seed that reads a
+ * malformed fixture with `JSON.parse` throws a real `SyntaxError` from its top level;
+ * calling that a syntax error in the seed is the same wasted afternoon as telling
+ * someone to upgrade Node when they left a quote open.
+ *
+ * What separates the two is that a parser reports a position in a source file and no
+ * call site — it could not report a call site, because nothing had run yet.
+ */
+export function isParseFailure(cause: unknown): boolean {
+  return parseFailureOf(cause) !== null;
+}
+
+/** What the parser said, and where it said it — the two things a report needs. */
+interface ParseFailure {
+  /** The parser's own words, with no class name or error count in front of them. */
+  message: string;
+  /** `file:line`, or null when the parser did not say where. */
+  location: string | null;
+}
+
+/**
+ * Reads a parse failure out of whatever the runtime threw, or returns null.
+ *
+ * Both supported runtimes expose "the parser rejected this" and neither does it the same
+ * way, so this is two answers to one question:
+ *
+ * - Bun throws a `BuildMessage`, which is not an `Error` at all — its prototype chain is
+ *   `BuildMessage → Object`, so every `instanceof` against it is false and it has to be
+ *   recognised by shape. In exchange it carries a structured `position`, which beats
+ *   digging through a stack.
+ * - Node throws a `SyntaxError` and prepends the source location to `stack`, above the
+ *   frames. It does that only for errors raised while compiling, so the preamble's
+ *   presence *is* the fact being tested — and unlike the frames it survives
+ *   `--stack-trace-limit`, which at a high setting puts sowme's own importing frame in a
+ *   compile failure's stack and would fool any test based on "did user code run".
+ */
+function parseFailureOf(cause: unknown): ParseFailure | null {
+  const built = buildMessageOf(cause);
+  if (built !== null) return built;
+
+  if (cause instanceof SyntaxError) {
+    const location = locationOf(cause);
+    if (location !== null) return { message: cause.message, location };
+
+    // Node labels a type-stripping parse failure outright. Believe the label even when
+    // the location preamble is missing, so a stack this file cannot read costs a line
+    // number rather than the whole diagnosis.
+    if ((cause as { code?: unknown }).code === 'ERR_INVALID_TYPESCRIPT_SYNTAX') {
+      return { message: cause.message, location: null };
+    }
+  }
+
+  return null;
+}
+
+/** As much of Bun's `BuildMessage` as this file reads. */
+interface BuildMessageLike {
+  name?: unknown;
+  message?: unknown;
+  position?: { file?: unknown; line?: unknown } | null;
+}
+
+function buildMessageOf(cause: unknown): ParseFailure | null {
+  // More than one message for one file arrives wrapped in an `AggregateError` whose own
+  // message is only a count — `2 errors building "…"`. The first message is the one to
+  // report: the rest normally cascade from it, as both of them do from one stray quote.
+  const wrapped = (cause as { errors?: unknown } | null)?.errors;
+  const message = (Array.isArray(wrapped) ? wrapped[0] : cause) as BuildMessageLike | null;
+
+  if (message?.name !== 'BuildMessage' || typeof message.message !== 'string') return null;
+
+  const file = message.position?.file;
+  const line = message.position?.line;
+
+  return {
+    message: message.message,
+    // Already an absolute path rather than a URL, and it names the file the parser
+    // choked on, which for a seed that imports your schema is not the file sowme asked
+    // for. That is the file worth printing.
+    location: typeof file === 'string' && typeof line === 'number' ? `${file}:${line}` : null,
+  };
 }
 
 /**

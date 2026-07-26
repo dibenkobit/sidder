@@ -72,10 +72,13 @@ describe('importModule', () => {
   });
 
   test('a syntax error is still a syntax error', async () => {
-    // Bun's parser throws a BuildMessage, which is not a SyntaxError, so a genuinely
-    // unparseable file cannot stand in for Node's parse failure here. The module raises
-    // the shape Node's loader raises.
-    const file = write('broken.ts', `throw new SyntaxError('Unexpected end of input');\n`);
+    // A file that genuinely does not parse. It used to have to fake one by throwing a
+    // SyntaxError at runtime, because Bun's parser throws a BuildMessage that the old
+    // `instanceof SyntaxError` gate could not see — and that fake is now correctly refused,
+    // since a module that compiled and then threw is not a module that failed to compile.
+    // `isParseFailure` recognises the real thing under both runtimes, so the real thing is
+    // what this uses. See parse-failure.test.ts.
+    const file = write('broken.ts', `export default { name: 'unclosed'\n`);
 
     const attempt = importModule(file);
 

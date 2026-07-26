@@ -5,6 +5,7 @@ export {
   DuplicateSeedNameError,
   InvalidConfigError,
   InvalidSeedError,
+  JournalTableMismatchError,
   MissingDependencyError,
   ModuleResolutionError,
   ModuleSyntaxError,
