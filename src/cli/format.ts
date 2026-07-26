@@ -15,7 +15,26 @@ const ESC = '\u001b';
 
 export const isInteractive = process.stdout.isTTY === true;
 
-const useColor = isInteractive && !process.env['NO_COLOR'] && process.env['TERM'] !== 'dumb';
+/**
+ * Colour follows the terminal, with both of the usual escape hatches.
+ *
+ * `FORCE_COLOR` is the one that earns its keep: CI logs and `sowme run | tee` are both
+ * non-TTY, and a run report that loses every glyph exactly where you go to read it later
+ * is the wrong trade. `FORCE_COLOR=0` refuses rather than merely failing to insist —
+ * that is what everyone who types it means.
+ *
+ * A refusal beats an insistence, so `NO_COLOR` wins when both are set. It is a person
+ * saying "never do this to my terminal"; `FORCE_COLOR` is only a caller saying "yes,
+ * even though this is a pipe".
+ *
+ * Read once, at load: none of it changes while the process runs.
+ */
+const forceColor = process.env['FORCE_COLOR'];
+const colorRefused = Boolean(process.env['NO_COLOR']) || forceColor === '0';
+const colorInsisted = forceColor !== undefined && forceColor !== '0';
+
+const useColor =
+  !colorRefused && process.env['TERM'] !== 'dumb' && (colorInsisted || isInteractive);
 
 const wrap = (code: string) => (text: string) =>
   useColor ? `${ESC}[${code}m${text}${ESC}[0m` : text;
@@ -95,7 +114,9 @@ export function formatStatus(inspection: Inspection): string {
     if (!seed.transaction) notes.push(style.yellow('no transaction'));
 
     const suffix = notes.length > 0 ? style.dim(`  ${notes.join(' · ')}`) : '';
-    lines.push(`  ${glyph} ${pad(seed.name)}  ${state}${suffix}`);
+    // trimEnd because `state` is padded for the column that follows it, and a seed with
+    // no notes has no such column — the padding would ship as trailing whitespace.
+    lines.push(`  ${glyph} ${pad(seed.name)}  ${state}${suffix}`.trimEnd());
   }
 
   if (inspection.orphans.length > 0) {
