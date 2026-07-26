@@ -1,6 +1,6 @@
 {
   "name": "sidder",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "A seed runner. Migrations got one fifteen years ago; seeds never did.",
   "type": "module",
   "packageManager": "bun@1.3.9",
