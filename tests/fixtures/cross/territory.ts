@@ -1,6 +1,6 @@
 import { defineSeed } from '../../../src/define.ts';
 
-/** Shared data, living in a seed file — which is the half of the finding siddy cannot name. */
+/** Shared data, living in a seed file — which is the half of the finding sidder cannot name. */
 export const REGIONS = ['north', 'south'];
 
 /** This seed's own work, exported and callable — the half that applies twice. */

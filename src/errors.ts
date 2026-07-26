@@ -3,44 +3,44 @@ import { fileURLToPath } from 'node:url';
 import { displayPath } from './resolve/paths.ts';
 
 /**
- * Every way siddy can refuse to run, in one file.
+ * Every way sidder can refuse to run, in one file.
  *
  * Each error carries a `hint`: a sentence saying what to do about it. The CLI prints
  * the message, then the hint, indented. A tool that sells clarity does not get to
  * throw "Error: invalid configuration".
  */
 
-export class SiddyError extends Error {
+export class SidderError extends Error {
   readonly hint: string;
 
   constructor(message: string, hint: string) {
     super(message);
-    this.name = 'SiddyError';
+    this.name = 'SidderError';
     this.hint = hint;
   }
 }
 
-export class ConfigNotFoundError extends SiddyError {
+export class ConfigNotFoundError extends SidderError {
   constructor(searched: string[], dir: string) {
     super(
       `No config file found in ${dir}`,
-      `Looked for: ${searched.join(', ')}. Run \`siddy init\` to write one, or pass --config <path>.`,
+      `Looked for: ${searched.join(', ')}. Run \`sidder init\` to write one, or pass --config <path>.`,
     );
     this.name = 'ConfigNotFoundError';
   }
 }
 
-export class InvalidConfigError extends SiddyError {
+export class InvalidConfigError extends SidderError {
   constructor(file: string, problem: string) {
     super(
-      `${file} is not a valid siddy config: ${problem}`,
+      `${file} is not a valid sidder config: ${problem}`,
       `A config module must \`export default\` an object with an \`adapter\`.`,
     );
     this.name = 'InvalidConfigError';
   }
 }
 
-export class NoSeedsFoundError extends SiddyError {
+export class NoSeedsFoundError extends SidderError {
   constructor(patterns: string[], baseDir: string) {
     super(
       `No seed files matched ${patterns.map((p) => `"${p}"`).join(' or ')}`,
@@ -50,7 +50,7 @@ export class NoSeedsFoundError extends SiddyError {
   }
 }
 
-export class InvalidSeedError extends SiddyError {
+export class InvalidSeedError extends SidderError {
   constructor(file: string, problem: string) {
     super(
       `${file} is not a seed: ${problem}`,
@@ -60,7 +60,7 @@ export class InvalidSeedError extends SiddyError {
   }
 }
 
-export class DuplicateSeedNameError extends SiddyError {
+export class DuplicateSeedNameError extends SidderError {
   constructor(name: string, files: string[]) {
     super(
       `Two seeds are both named "${name}"`,
@@ -70,7 +70,7 @@ export class DuplicateSeedNameError extends SiddyError {
   }
 }
 
-export class UnknownDependencyError extends SiddyError {
+export class UnknownDependencyError extends SidderError {
   constructor(seed: string, missing: string, known: string[]) {
     super(
       `Seed "${seed}" depends on "${missing}", which does not exist`,
@@ -80,7 +80,7 @@ export class UnknownDependencyError extends SiddyError {
   }
 }
 
-export class DependencyCycleError extends SiddyError {
+export class DependencyCycleError extends SidderError {
   constructor(cycle: string[]) {
     super(
       `Seeds depend on each other in a cycle: ${cycle.join(' → ')}`,
@@ -90,17 +90,17 @@ export class DependencyCycleError extends SiddyError {
   }
 }
 
-export class MissingDependencyError extends SiddyError {
+export class MissingDependencyError extends SidderError {
   constructor(seed: string, dependency: string) {
     super(
       `"${seed}" depends on "${dependency}", which is neither selected nor already applied`,
-      `--only runs exactly what you name, it does not pull dependencies in. Run \`siddy run --only ${dependency},${seed}\` or drop --only.`,
+      `--only runs exactly what you name, it does not pull dependencies in. Run \`sidder run --only ${dependency},${seed}\` or drop --only.`,
     );
     this.name = 'MissingDependencyError';
   }
 }
 
-export class UnnamedInlineSeedError extends SiddyError {
+export class UnnamedInlineSeedError extends SidderError {
   constructor(index: number) {
     super(
       `The seed at index ${index} of \`seeds\` has no \`name\``,
@@ -110,7 +110,7 @@ export class UnnamedInlineSeedError extends SiddyError {
   }
 }
 
-export class UnsafeTableNameError extends SiddyError {
+export class UnsafeTableNameError extends SidderError {
   constructor(table: string) {
     super(
       `Journal table name "${table}" is not a plain SQL identifier`,
@@ -128,20 +128,20 @@ export class UnsafeTableNameError extends SiddyError {
  * until the first read, which fails as `column "applied_at" does not exist` — naming
  * neither the table nor the setting that chose it. This says both.
  */
-export class JournalTableMismatchError extends SiddyError {
+export class JournalTableMismatchError extends SidderError {
   constructor(table: string, expected: readonly string[], found: readonly string[]) {
     const missing = expected.filter((column) => !found.includes(column));
 
     super(
-      `Table "${table}" exists but is not siddy's journal`,
+      `Table "${table}" exists but is not sidder's journal`,
       [
         `It has ${found.join(', ')}. A journal has ${expected.join(', ')}.`,
         // Spelled out only when the two lists overlap, which is a journal whose columns
         // have drifted rather than somebody else's table. When nothing matches, the two
         // lists above already say so and repeating them adds a line and no fact.
         ...(missing.length < expected.length ? [`Missing: ${missing.join(', ')}.`] : []),
-        `\`journalTable\` is what chose this name. Point it at a name of siddy's own — the`,
-        `default is \`siddy_journal\`, and siddy creates the table itself, so the name only`,
+        `\`journalTable\` is what chose this name. Point it at a name of sidder's own — the`,
+        `default is \`sidder_journal\`, and sidder creates the table itself, so the name only`,
         `has to be free.`,
       ].join('\n'),
     );
@@ -150,11 +150,11 @@ export class JournalTableMismatchError extends SiddyError {
 }
 
 const RUNTIME_CHOICES = [
-  'siddy runs your seeds in its own process, so whatever launched siddy has to be able to import .ts.',
+  'sidder runs your seeds in its own process, so whatever launched sidder has to be able to import .ts.',
   'Pick one:',
-  '  bun --bun siddy run          # Bun: native TypeScript, honours tsconfig paths',
+  '  bun --bun sidder run          # Bun: native TypeScript, honours tsconfig paths',
   '  node >= 22.18                # native type stripping, no tsconfig paths',
-  '  node --import tsx node_modules/.bin/siddy run',
+  '  node --import tsx node_modules/.bin/sidder run',
 ];
 
 /**
@@ -166,7 +166,7 @@ const RUNTIME_CHOICES = [
  * is a different problem and gets {@link ModuleSyntaxError}, because telling someone
  * to upgrade Node when they actually left a quote open wastes their afternoon.
  */
-export class TypeScriptLoaderError extends SiddyError {
+export class TypeScriptLoaderError extends SidderError {
   constructor(file: string, cause: unknown) {
     super(
       `Could not load ${file} — this runtime does not read TypeScript`,
@@ -179,11 +179,11 @@ export class TypeScriptLoaderError extends SiddyError {
 /**
  * The file was parsed and rejected. Whatever the parser said is the headline.
  *
- * The file siddy imported is rarely the file with the mistake — a seed imports your
+ * The file sidder imported is rarely the file with the mistake — a seed imports your
  * schema, which imports your client. So the location comes from the parser's own
- * report, and the file siddy asked for is demoted to a footnote.
+ * report, and the file sidder asked for is demoted to a footnote.
  */
-export class ModuleSyntaxError extends SiddyError {
+export class ModuleSyntaxError extends SidderError {
   constructor(file: string, cause: unknown) {
     const parsed = parseFailureOf(cause);
     const location = parsed?.location ?? null;
@@ -204,20 +204,20 @@ export class ModuleSyntaxError extends SiddyError {
 }
 
 /**
- * An import did not resolve. The file siddy asked for was found; something it imports
+ * An import did not resolve. The file sidder asked for was found; something it imports
  * is not where the import says it is.
  *
- * Every new project meets this one: the import of your database handle that `siddy init`
+ * Every new project meets this one: the import of your database handle that `sidder init`
  * writes into the config is a placeholder, wrong until you fix it. Raw, the runtime
  * reports that as two absolute paths and an error code, and never mentions that the line
- * it is complaining about is the line `siddy init` told you to edit.
+ * it is complaining about is the line `sidder init` told you to edit.
  *
  * The specifier and the file that imports it are the only two facts worth printing, and
  * they pick the hint. The config's own db import, an import inside a seed, a package that
  * is not installed and a directory where the resolver wants a file are four mistakes with
  * four different fixes; one hint covering all of them would cover none of them.
  */
-export class ModuleResolutionError extends SiddyError {
+export class ModuleResolutionError extends SidderError {
   constructor(file: string, cause: unknown) {
     const failure = resolutionOf(cause);
 
@@ -230,7 +230,7 @@ export class ModuleResolutionError extends SiddyError {
 interface Resolution {
   /** As the resolver reported it: Bun keeps what you typed, Node resolves it first. */
   specifier: string;
-  /** The file the failing import is written in — rarely the file siddy asked for. */
+  /** The file the failing import is written in — rarely the file sidder asked for. */
   importer: string;
   /** The path is a directory and the resolver wants a file. Node only; Bun resolves these. */
   directory: boolean;
@@ -245,7 +245,7 @@ function adviceFor(file: string, failure: Resolution | null, cause: unknown): st
   if (failure === null) {
     return [
       "Check that file's imports — one of them does not point at anything. The runtime",
-      'described which one in a shape siddy does not recognise, so here it is verbatim:',
+      'described which one in a shape sidder does not recognise, so here it is verbatim:',
       '',
       `  ${describe(cause)}`,
     ].join('\n');
@@ -253,7 +253,7 @@ function adviceFor(file: string, failure: Resolution | null, cause: unknown): st
 
   return [
     // The same demotion ModuleSyntaxError does: the file holding the bad import is
-    // rarely the file siddy asked for, so the one it asked for becomes a footnote.
+    // rarely the file sidder asked for, so the one it asked for becomes a footnote.
     ...(failure.importer === file ? [] : [`Reached while importing ${displayPath(file)}.`, '']),
     ...adviceLines(failure),
   ].join('\n');
@@ -275,8 +275,8 @@ function adviceLines({ specifier, importer, directory }: Resolution): string[] {
   if (isBareSpecifier(specifier)) {
     const aPackage = ['  A package — install it where the importing file can see it.'];
     const anAlias = [
-      "  An alias — siddy imports with the runtime it was launched with, and Node's type",
-      '  stripping does not read tsconfig paths. Bun does (`bun --bun siddy run`), and a',
+      "  An alias — sidder imports with the runtime it was launched with, and Node's type",
+      '  stripping does not read tsconfig paths. Bun does (`bun --bun sidder run`), and a',
       '  relative path works under both.',
     ];
     // `@/db` has no scope name, so it cannot be a package: npm has no such thing. When the
@@ -293,7 +293,7 @@ function adviceLines({ specifier, importer, directory }: Resolution): string[] {
 
   if (isConfigFile(importer)) {
     return [
-      "That is the config's import of your database handle. `siddy init` writes it as a",
+      "That is the config's import of your database handle. `sidder init` writes it as a",
       'placeholder — a guess at your layout, not something it read — so it stays wrong until',
       'you point it at the module that really exports it.',
       '',
@@ -318,11 +318,11 @@ function adviceLines({ specifier, importer, directory }: Resolution): string[] {
  * that happens it returns null and the caller quotes the runtime verbatim instead of
  * inventing facts. The shapes it knows, verbatim:
  *
- *   Node ESM  Cannot find module '/abs/db.ts' imported from /abs/siddy.config.ts
- *   Node ESM  Cannot find package 'pg' imported from /abs/siddy.config.ts
+ *   Node ESM  Cannot find module '/abs/db.ts' imported from /abs/sidder.config.ts
+ *   Node ESM  Cannot find package 'pg' imported from /abs/sidder.config.ts
  *   Node ESM  Directory import '/abs/db' is not supported resolving ES modules imported from /abs/x.ts
- *   Node CJS  Cannot find module './db.js'\nRequire stack:\n- /abs/siddy.config.js
- *   Bun       Cannot find module './db.ts' from '/abs/siddy.config.ts'
+ *   Node CJS  Cannot find module './db.js'\nRequire stack:\n- /abs/sidder.config.js
+ *   Bun       Cannot find module './db.ts' from '/abs/sidder.config.ts'
  */
 function resolutionOf(cause: unknown): Resolution | null {
   const message = describe(cause);
@@ -343,7 +343,7 @@ function resolutionOf(cause: unknown): Resolution | null {
     }
   }
 
-  // Both facts or neither: an importer siddy cannot name turns every hint into a guess,
+  // Both facts or neither: an importer sidder cannot name turns every hint into a guess,
   // since which of them applies depends on where the failing import is written.
   return null;
 }
@@ -394,12 +394,12 @@ function looksLikeAlias(specifier: string): boolean {
 }
 
 /**
- * The config is the one file whose name siddy fixes, so recognising it needs no plumbing.
+ * The config is the one file whose name sidder fixes, so recognising it needs no plumbing.
  * A config renamed by --config falls through to the generic advice, which is still true —
  * only less specific.
  */
 function isConfigFile(file: string): boolean {
-  return basename(file).startsWith('siddy.config.');
+  return basename(file).startsWith('sidder.config.');
 }
 
 /**
@@ -439,7 +439,7 @@ interface ParseFailure {
  * - Node throws a `SyntaxError` and prepends the source location to `stack`, above the
  *   frames. It does that only for errors raised while compiling, so the preamble's
  *   presence *is* the fact being tested — and unlike the frames it survives
- *   `--stack-trace-limit`, which at a high setting puts siddy's own importing frame in a
+ *   `--stack-trace-limit`, which at a high setting puts sidder's own importing frame in a
  *   compile failure's stack and would fool any test based on "did user code run".
  */
 function parseFailureOf(cause: unknown): ParseFailure | null {
@@ -483,7 +483,7 @@ function buildMessageOf(cause: unknown): ParseFailure | null {
   return {
     message: message.message,
     // Already an absolute path rather than a URL, and it names the file the parser
-    // choked on, which for a seed that imports your schema is not the file siddy asked
+    // choked on, which for a seed that imports your schema is not the file sidder asked
     // for. That is the file worth printing.
     location: typeof file === 'string' && typeof line === 'number' ? `${file}:${line}` : null,
   };

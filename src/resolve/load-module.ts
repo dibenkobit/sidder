@@ -9,7 +9,7 @@ import {
 /**
  * `await import()`, with three failures answered properly.
  *
- * siddy deliberately ships no TypeScript loader. It imports your files with the
+ * sidder deliberately ships no TypeScript loader. It imports your files with the
  * runtime it was launched with, so Bun and Node >= 22.18 read `.ts` natively and
  * nobody pays for a transpiler they already have. The cost of that choice is one
  * confusing failure mode — an old Node meeting a `.ts` file — which is caught here.
@@ -27,7 +27,7 @@ export async function importModule(file: string): Promise<Record<string, unknown
 
     // Asked before the TypeScript question below, because an import that does not
     // resolve has nothing to do with the extension of the file that wrote it: a
-    // CommonJS siddy.config.js fails the same way, one loader further down.
+    // CommonJS sidder.config.js fails the same way, one loader further down.
     if (code !== undefined && RESOLUTION_CODES.includes(code)) {
       throw new ModuleResolutionError(file, error);
     }
@@ -37,7 +37,7 @@ export async function importModule(file: string): Promise<Record<string, unknown
     // it cannot erase (enums, namespaces, parameter properties). Both mean the runtime
     // rather than the file, which is why the extension is consulted here and only here —
     // the advice they carry is about reading `.ts` at all. Consulting it any earlier would
-    // send a `siddy.config.js` with a stray quote away with no answer.
+    // send a `sidder.config.js` with a stray quote away with no answer.
     if (
       isTypeScriptFile(file) &&
       (code === 'ERR_UNKNOWN_FILE_EXTENSION' || code === 'ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX')
@@ -46,7 +46,7 @@ export async function importModule(file: string): Promise<Record<string, unknown
     }
 
     // Whether the parser rejected the file is a question about what was thrown, not about
-    // what the file is called: a `siddy.config.js` with a stray quote arrives here exactly
+    // what the file is called: a `sidder.config.js` with a stray quote arrives here exactly
     // as a seed does. `isParseFailure` is careful about the other half of that question —
     // a module that compiled, ran, and threw must not land here.
     if (isParseFailure(error)) {
@@ -61,7 +61,7 @@ export async function importModule(file: string): Promise<Record<string, unknown
  * The codes that mean "a specifier did not resolve", and nothing wider.
  *
  * `ERR_MODULE_NOT_FOUND` is Node's ESM resolver and Bun's both. `MODULE_NOT_FOUND` is
- * the CommonJS `require()` that a `siddy.config.js` in a project without
+ * the CommonJS `require()` that a `sidder.config.js` in a project without
  * `"type": "module"` is made of — a supported config filename, so a supported failure.
  * `ERR_UNSUPPORTED_DIR_IMPORT` is resolution failing too, and the same question ("which
  * file did you mean?") with a known answer, so it is answered here rather than passed

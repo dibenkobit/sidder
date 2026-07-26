@@ -1,19 +1,19 @@
-import { SiddyError } from '../errors.ts';
+import { SidderError } from '../errors.ts';
 import type { Inspection } from '../inspect.ts';
 import type { Decision } from '../plan/plan.ts';
 import type { CrossImport, SeedOutcome, SkipReason } from '../types.ts';
 
 /**
- * Everything siddy prints.
+ * Everything sidder prints.
  *
- * The rule this file exists to enforce: nothing siddy worked out on its own goes
+ * The rule this file exists to enforce: nothing sidder worked out on its own goes
  * unmentioned. Which config, which environment and where the environment came from
  * are on screen before the first statement reaches the database, and every seed that
  * does not run says why in the same line that says it did not run.
  *
- * The rule is about siddy's own guesses being visible, not about volume. The one skip
+ * The rule is about sidder's own guesses being visible, not about volume. The one skip
  * that does not get a line each is `--only`'s, because "you did not select this" is
- * something you typed rather than something siddy worked out, and forty-nine of them
+ * something you typed rather than something sidder worked out, and forty-nine of them
  * hide the one line you asked for. It is counted instead — see `formatNotSelected`.
  */
 
@@ -24,7 +24,7 @@ export const isInteractive = process.stdout.isTTY === true;
 /**
  * Colour follows the terminal, with both of the usual escape hatches.
  *
- * `FORCE_COLOR` is the one that earns its keep: CI logs and `siddy run | tee` are both
+ * `FORCE_COLOR` is the one that earns its keep: CI logs and `sidder run | tee` are both
  * non-TTY, and a run report that loses every glyph exactly where you go to read it later
  * is the wrong trade. `FORCE_COLOR=0` refuses rather than merely failing to insist —
  * that is what everyone who types it means.
@@ -65,7 +65,7 @@ export function formatHeader(parts: {
   journalTable?: string;
 }): string {
   const segments = [
-    style.bold('siddy') + style.dim(` ${parts.version}`),
+    style.bold('sidder') + style.dim(` ${parts.version}`),
     parts.configFile,
     `env ${style.cyan(parts.env)} ${style.dim(`(${parts.envSource})`)}`,
   ];
@@ -98,7 +98,7 @@ export function formatSkipReason(reason: SkipReason, env: string): string {
 /**
  * The seeds `--only` filtered out, as one line rather than one line each.
  *
- * Every other skip is news. "Already applied" and "wrong environment" are things siddy
+ * Every other skip is news. "Already applied" and "wrong environment" are things sidder
  * worked out from the journal and the seed file; "you did not select it" is a restatement
  * of the flag you just typed, and on a fifty-seed project it is forty-nine lines burying
  * the one line you asked for.
@@ -131,7 +131,7 @@ export function padder(names: readonly string[]): (name: string) => string {
  *
  * This is the warning that has to survive being read by someone who does not think they
  * have a problem. For the project it was written against, these imports *are* how two
- * seeds share a constants table — and a line that reads as siddy complaining about
+ * seeds share a constants table — and a line that reads as sidder complaining about
  * constants gets muted, after which the silent double application ships anyway. So it
  * names both seeds and every binding it saw, so the statement can be found in the file,
  * and it asks for the one change that dissolves the finding instead of quietening it:
@@ -164,11 +164,11 @@ export function formatCrossImports(findings: readonly CrossImport[]): string | n
     `  ${style.yellow('warning')} seed files that import another seed:`,
     ...rows,
     ...[
-      'Work imported from a seed and called runs twice — siddy runs that seed as',
+      'Work imported from a seed and called runs twice — sidder runs that seed as',
       'well — and both are ordinary writes, so the journal records one.',
-      'Which of those bindings is work and which is shared data, siddy does not decide.',
+      'Which of those bindings is work and which is shared data, sidder does not decide.',
       'Move data two seeds share into a module that is not a seed. Where it is the',
-      'work you want, `dependsOn` replaces the import and siddy still runs it once.',
+      'work you want, `dependsOn` replaces the import and sidder still runs it once.',
     ].map((line) => style.dim(`    ${line}`)),
   ].join('\n');
 }
@@ -291,7 +291,7 @@ export function formatStatus(
  * command, and why it is one function over the run's own outcomes.
  *
  * The order is the order of the answers you want to hear, following `decide`: what you
- * typed before what siddy observed. A `--only` that named nothing runnable is a better
+ * typed before what sidder observed. A `--only` that named nothing runnable is a better
  * answer than a remark about environments.
  */
 export function formatNothingApplied(parts: {
@@ -347,7 +347,7 @@ function decisionsOf(outcomes: readonly SeedOutcome[]): Decision[] {
  * The environment gate is checked before the journal, so a seed that reports `wrong-env`
  * will never run under this name however many times you try. Every seed reporting one is
  * therefore not a fact about the database but a fact about the name, and the only thing
- * siddy can offer in its place is the set of names that would have worked.
+ * sidder can offer in its place is the set of names that would have worked.
  */
 function environmentsSeedsAccept(decisions: readonly Decision[]): string[] | null {
   const accepted = new Set<string>();
@@ -382,9 +382,9 @@ function formatNothingSelected(names: readonly string[]): string {
   return [
     `  ${style.yellow('nothing ran')} — every seed you selected is already in the journal.`,
     ...commandLines([
-      [`siddy run --only ${names.join(',')} --force`, 'run it anyway'],
+      [`sidder run --only ${names.join(',')} --force`, 'run it anyway'],
       [
-        `siddy forget ${names.join(' ')}`,
+        `sidder forget ${names.join(' ')}`,
         names.length === 1 ? 'drop its journal row' : 'drop their journal rows',
       ],
     ]),
@@ -405,14 +405,14 @@ function formatNothingMatched(names: readonly string[]): string {
   return [
     `  ${style.yellow('nothing ran')} — no seed is named ${quoted}.`,
     style.dim('    A seed takes its name from its filename unless it sets `name`.'),
-    ...commandLines([['siddy status', 'every name, as siddy resolved it']]),
+    ...commandLines([['sidder status', 'every name, as sidder resolved it']]),
   ].join('\n');
 }
 
 /**
  * A run in an environment that every seed refused.
  *
- * This is `siddy run --env prodution`: no seed matches, everything skips, and CI reads a
+ * This is `sidder run --env prodution`: no seed matches, everything skips, and CI reads a
  * successful deploy step. The per-seed lines do each say `production only — running as
  * prodution`, but nothing in them separates "this environment has no work today" — a real
  * state, and a quiet one — from "no seed has ever heard of this name". Every seed being
@@ -420,26 +420,26 @@ function formatNothingMatched(names: readonly string[]): string {
  * checked before the journal, so a seed that reports `wrong-env` will never run under this
  * name no matter how often you try.
  *
- * The exit code stays 0. siddy cannot tell a misspelling from an environment that
+ * The exit code stays 0. sidder cannot tell a misspelling from an environment that
  * legitimately has no seeds — a project whose seeds are all `development` and whose
- * deploy runs `siddy run` in every environment is doing nothing wrong — and failing that
+ * deploy runs `sidder run` in every environment is doing nothing wrong — and failing that
  * pipeline in order to catch a typo is the more expensive of the two mistakes. What is
- * within siddy's power is to be impossible to miss, and to name where the value came
+ * within sidder's power is to be impossible to miss, and to name where the value came
  * from, since the place to fix it differs for each source.
  *
  * Which environment to use instead is deliberately not suggested. The list is right
- * there, and a tool that offers `siddy run --env production` as a hint is a tool that
+ * there, and a tool that offers `sidder run --env production` as a hint is a tool that
  * talked someone into seeding production.
  *
  * "these seeds" rather than "no seed", because the claim is only as wide as the lines
- * above it: under `--only` the seeds nobody asked about were never consulted, and siddy
+ * above it: under `--only` the seeds nobody asked about were never consulted, and sidder
  * does not know what they would have said.
  */
 function formatUnknownEnvironment(parts: {
   env: string;
   /** `ResolvedConfig.sources.env` — where this environment came from. */
   source: string;
-  /** Every environment the seeds siddy consulted are willing to run in. */
+  /** Every environment the seeds sidder consulted are willing to run in. */
   declared: readonly string[];
 }): string {
   return [
@@ -458,7 +458,7 @@ function formatUnknownEnvironment(parts: {
  */
 function environmentOrigin(env: string, source: string): string {
   if (source === 'default') {
-    return `nothing chose an environment, so siddy used ${env} — pass --env or set NODE_ENV`;
+    return `nothing chose an environment, so sidder used ${env} — pass --env or set NODE_ENV`;
   }
 
   const where = source === 'config' ? '`env` in your config' : source;
@@ -502,7 +502,7 @@ const indent = (text: string) =>
 
 const TRACE_HINT = 'Run again with --trace for the stack.';
 
-/** A siddy error is a message and a hint. Anything else is a message and, on request, a stack. */
+/** A sidder error is a message and a hint. Anything else is a message and, on request, a stack. */
 export function formatError(error: unknown, trace = false): string {
   return `${style.red('error')} ${headlineOf(error)}\n${style.dim(indent(bodyOf(error, trace)))}`;
 }
@@ -534,7 +534,7 @@ function headlineOf(error: unknown): string {
 }
 
 function bodyOf(error: unknown, trace: boolean): string {
-  if (error instanceof SiddyError) return error.hint;
+  if (error instanceof SidderError) return error.hint;
   if (!(error instanceof Error)) return '';
 
   const lines = [...databaseDetails(error)];

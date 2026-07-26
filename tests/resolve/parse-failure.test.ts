@@ -18,7 +18,7 @@ import { importModule } from '../../src/resolve/load-module.ts';
 let dir: string;
 
 beforeAll(async () => {
-  dir = await mkdtemp(join(tmpdir(), 'siddy-load-'));
+  dir = await mkdtemp(join(tmpdir(), 'sidder-load-'));
   // Without this, a `.ts` file with no package.json above it is CommonJS to Node, and
   // every `export` below would be a syntax error for the wrong reason.
   await writeFile(join(dir, 'package.json'), '{ "type": "module" }');
@@ -163,10 +163,10 @@ describe('isParseFailure', () => {
 
   test("a raised --stack-trace-limit does not turn Node's parse failure into a throw", () => {
     // At a high limit the frames of a compile failure run past the runtime's internals
-    // and into siddy's own importing frame, so "did any user code appear in the stack"
+    // and into sidder's own importing frame, so "did any user code appear in the stack"
     // is not the question. The location above the frames is.
     const error = nodeParseFailure();
-    error.stack += ['', '    at file:///node_modules/siddy/dist/load-module.js:18:12'].join('\n');
+    error.stack += ['', '    at file:///node_modules/sidder/dist/load-module.js:18:12'].join('\n');
 
     expect(isParseFailure(error)).toBe(true);
   });

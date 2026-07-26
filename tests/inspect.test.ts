@@ -18,7 +18,7 @@ async function inspectFixtures(glob: string, options: { only?: string[] } = {}) 
 describe('inspect and seeds that import each other', () => {
   /**
    * On `Inspection` rather than only in the formatter, which is what puts it in
-   * `siddy status --json` without anything further being written.
+   * `sidder status --json` without anything further being written.
    */
   test('reports the finding as data, naming both seeds and the bindings', async () => {
     const inspection = await inspectFixtures('cross/*.ts');

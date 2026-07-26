@@ -13,7 +13,7 @@ import { nameFromFile } from './paths.ts';
 /**
  * Turns whatever `config.seeds` holds into a list of named seeds.
  *
- * Two inputs, because there are two ways to use siddy. From the CLI you give globs
+ * Two inputs, because there are two ways to use sidder. From the CLI you give globs
  * and files are found and imported. From a test you hand over seed objects directly,
  * and no filesystem is touched at all — that is the difference between "seed my dev
  * database" and "set up these three tables for this test".

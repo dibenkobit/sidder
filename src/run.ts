@@ -29,7 +29,7 @@ import type {
 } from './types.ts';
 
 /**
- * A seed threw. Everything siddy knows about the run at that moment, on the throw.
+ * A seed threw. Everything sidder knows about the run at that moment, on the throw.
  *
  * `runSeeds` throws rather than returning a result with a `failed` outcome in it, and
  * that is not negotiable: a deploy script that ignores the return value must not carry
@@ -37,10 +37,10 @@ import type {
  * is committed", which is the difference between resuming and starting over — so they
  * ride along instead of being dropped on the floor.
  *
- * Deliberately **not** a `SiddyError`. Everything in `errors.ts` is a way siddy refuses
+ * Deliberately **not** a `SidderError`. Everything in `errors.ts` is a way sidder refuses
  * to run and carries a `hint` saying what to do about it; this is a report wrapped
- * around someone else's failure, and the remedy is in a seed siddy has no opinion
- * about. Inventing a hint here would be siddy guessing out loud.
+ * around someone else's failure, and the remedy is in a seed sidder has no opinion
+ * about. Inventing a hint here would be sidder guessing out loud.
  *
  * The original error is on `cause`, the standard property, because that is where every
  * consumer already looks — including the CLI, which reads a Postgres driver's `detail`
@@ -188,7 +188,7 @@ export async function runSeeds<TDb>(
  * When the seed is transactional, `recordApplied` is called with the transaction's own
  * scope, so the journal row commits with the seed's writes or not at all. When it is
  * not — `transaction: false` — the record is written afterwards through the root scope
- * and the two can diverge. That is exactly the risk you opted into, and `siddy status`
+ * and the two can diverge. That is exactly the risk you opted into, and `sidder status`
  * says so out loud for any seed that opted into it.
  *
  * Returns the decision that was actually acted on, which is not always the one the plan
@@ -240,7 +240,7 @@ async function executeSeed<TDb>(
   };
 
   if (seed.transaction === false) {
-    // The one seed siddy cannot make safe against a concurrent run, stated plainly.
+    // The one seed sidder cannot make safe against a concurrent run, stated plainly.
     //
     // There is no transaction here to scope a lock to, and both ways around that are
     // worse than the gap. A session-level lock needs a connection that is nobody's to
@@ -258,7 +258,7 @@ async function executeSeed<TDb>(
     //
     // Nothing here ever emits `waiting` either. There is no lock to be refused, so there
     // is nothing to observe and nothing honest to say at this point in the run — the gap
-    // gets said out loud where someone is asking about it instead, under `siddy status`.
+    // gets said out loud where someone is asking about it instead, under `sidder status`.
     const decision = await reconsider(context.adapter.root);
     if (decision.action === 'skip') return decision;
 
@@ -274,7 +274,7 @@ async function executeSeed<TDb>(
     // itself is a seed that cannot deadlock against its own second copy.
     //
     // Asked for without waiting first, then waited for, so that `waiting` is something
-    // siddy was told rather than something it assumed. Emitting it before an ordinary
+    // sidder was told rather than something it assumed. Emitting it before an ordinary
     // blocking lock — the shorter version of this — would claim a second run on every
     // seed of every run, and a claim that is usually false is worse than the silence it
     // replaces. The uncontended path costs the one statement it always did and emits
@@ -304,7 +304,7 @@ async function executeSeed<TDb>(
  * The cause's own message, to repeat inside the wrapper's.
  *
  * A test suite asserting on the message a seed threw keeps matching once the throw is
- * wrapped, and an uncaught failure still reads as itself rather than as a siddy noun.
+ * wrapped, and an uncaught failure still reads as itself rather than as a sidder noun.
  */
 function messageOf(cause: unknown): string {
   return cause instanceof Error ? cause.message : String(cause);

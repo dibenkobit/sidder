@@ -6,7 +6,7 @@ import type { ResolvedSeed } from '../types.ts';
  *
  * Deterministic: among the seeds that are ready to run, the one that came first in
  * the input wins. Discovery sorts files by path, so the same set of files always
- * produces the same order, and that order is the one printed by `siddy status`.
+ * produces the same order, and that order is the one printed by `sidder status`.
  *
  * This is Kahn's algorithm written as a plain rescan rather than with a queue and an
  * in-degree table. It is O(n²) in the number of seeds, which for any realistic project

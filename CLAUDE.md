@@ -1,4 +1,4 @@
-# siddy — working agreement
+# sidder — working agreement
 
 Read this before starting anything: a feature, a fix, a doc change, a review.
 
@@ -55,7 +55,7 @@ type, the error that blamed the runtime for a missing quote, the stack trace whe
 constraint violation should have been.
 
 A feature checklist does not measure this. A runner that does everything and still makes
-you `delete from siddy_journal` by hand to re-run the seed you are editing is not done.
+you `delete from sidder_journal` by hand to re-run the seed you are editing is not done.
 
 ## 5. Craft counts outside `src/` too
 
@@ -78,7 +78,7 @@ despite being the same problem. `README.md` is the pitch; this is the map.
 
 **Guessing is fine. Guessing quietly is not.**
 
-siddy infers the config path, the seed glob, the environment, every seed's name and the
+sidder infers the config path, the seed glob, the environment, every seed's name and the
 run order. Each inference is printed with its provenance before anything reaches the
 database — `env development (NODE_ENV)` and `env development (--env)` are different
 facts and print differently. `ResolvedConfig.sources` exists for exactly this.
@@ -101,7 +101,7 @@ bundler. Reading `dist/` should feel like reading `src/`.
 ```bash
 bun test          # unit tests, in-memory adapter, no database
 bun run db:up     # Postgres on :55432 for the integration tests
-bun run test:pg   # the same suite with SIDDY_TEST_DATABASE_URL set
+bun run test:pg   # the same suite with SIDDER_TEST_DATABASE_URL set
 bun run check     # lint + typecheck + test — run before committing
 ```
 
@@ -113,8 +113,8 @@ it there. `tests/` mirrors it file for file.
 
 | File | What it owns |
 |---|---|
-| `types.ts` | every concept siddy has. If it is not here, siddy does not have it |
-| `errors.ts` | every way siddy can refuse to run, each with a `hint` saying what to do |
+| `types.ts` | every concept sidder has. If it is not here, sidder does not have it |
+| `errors.ts` | every way sidder can refuse to run, each with a `hint` saying what to do |
 | `define.ts` | `defineConfig` / `defineSeed` — the authoring surface |
 | `index.ts` | the public API. Its paths are pinned by `package.json` exports |
 | `run.ts` | the whole tool. `runSeeds()` is what the CLI wraps |

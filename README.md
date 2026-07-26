@@ -1,4 +1,4 @@
-# siddy
+# sidder
 
 A seed runner.
 
@@ -10,14 +10,14 @@ applied, one entry point, a `status` command and a single process. Seeds have a 
 of scripts and a `&&`-chain in `package.json` that somebody maintains by hand.
 
 ```bash
-npm i -D siddy
+npm i -D sidder
 ```
 
 **Status: 0.1, not on npm yet.** Until it is published, install it from git with npm,
 pnpm or yarn:
 
 ```bash
-npm i -D github:dibenkobit/siddy
+npm i -D github:dibenkobit/sidder
 ```
 
 Not with `bun add`, and this is bun's limitation rather than a missing script here: bun
@@ -35,9 +35,9 @@ database — but young. See [Not done yet](#not-done-yet).
 ## Seed one table
 
 ```ts
-// siddy.config.ts
-import { defineConfig } from 'siddy';
-import { pgAdapter } from 'siddy/adapters/pg';
+// sidder.config.ts
+import { defineConfig } from 'sidder';
+import { pgAdapter } from 'sidder/adapters/pg';
 import { pool } from './src/db/index.ts';
 
 export default defineConfig({
@@ -48,7 +48,7 @@ export default defineConfig({
 
 ```ts
 // seeds/roles.ts
-import { defineSeed } from 'siddy';
+import { defineSeed } from 'sidder';
 
 export default defineSeed({
   async run({ db }) {
@@ -58,7 +58,7 @@ export default defineSeed({
 ```
 
 ```bash
-$ siddy run
+$ sidder run
 ```
 
 That is three things to know: the config, `defineSeed`, and the `db` you are handed.
@@ -73,8 +73,8 @@ error rather than silence.
 ## What one run looks like
 
 ```
-$ siddy run
-siddy 0.1.0  ·  siddy.config.ts  ·  env development (NODE_ENV)  ·  journal siddy_journal
+$ sidder run
+sidder 0.1.0  ·  sidder.config.ts  ·  env development (NODE_ENV)  ·  journal sidder_journal
 
   ✓ roles         7ms
   ✓ territory     5ms
@@ -86,7 +86,7 @@ siddy 0.1.0  ·  siddy.config.ts  ·  env development (NODE_ENV)  ·  journal si
 ```
 
 ```
-$ siddy status
+$ sidder status
   ✓ roles         applied 2026-07-26  always
   ✓ territory     applied 2026-07-26
   ✓ demo          applied 2026-07-26  after territory, roles
@@ -108,7 +108,7 @@ $ siddy status
 
 **Guessing is fine. Guessing quietly is not.**
 
-siddy finds your config by walking up from the working directory, defaults your seeds
+sidder finds your config by walking up from the working directory, defaults your seeds
 to `seeds/**/*.ts`, and takes the environment from `NODE_ENV`. Each of those saves you
 a line of configuration — and each is named in the header of every run, along with
 where it came from. `env development (NODE_ENV)` and `env development (--env)` are
@@ -141,11 +141,11 @@ This is not sort metadata. It is the answer to "my demo data needs regions to ex
 which without a runner can only be expressed as `import { seedTerritory }` followed by
 calling it — at which point territory runs twice and nothing on the outside shows it.
 
-siddy runs each seed exactly once per invocation, so declaring the dependency is enough.
+sidder runs each seed exactly once per invocation, so declaring the dependency is enough.
 The corollary is that **seeds talk to each other through the database, not through
 memory**. Need the region ids? Select them.
 
-If a name in `dependsOn` does not exist, or two seeds depend on each other, siddy says
+If a name in `dependsOn` does not exist, or two seeds depend on each other, sidder says
 so before running anything — and prints the actual cycle, not just that there is one.
 
 And because the old way is the quiet one, `run` and `status` both point it out when they
@@ -154,17 +154,17 @@ see it:
 ```
   warning seed files that import another seed:
     demo imports territory  — REGIONS, seedTerritory
-    Work imported from a seed and called runs twice — siddy runs that seed as
+    Work imported from a seed and called runs twice — sidder runs that seed as
     well — and both are ordinary writes, so the journal records one.
-    Which of those bindings is work and which is shared data, siddy does not decide.
+    Which of those bindings is work and which is shared data, sidder does not decide.
     Move data two seeds share into a module that is not a seed. Where it is the
-    work you want, `dependsOn` replaces the import and siddy still runs it once.
+    work you want, `dependsOn` replaces the import and sidder still runs it once.
 ```
 
 It is a warning and only a warning: nothing stops, and the exit code stays 0. The
 bindings are named rather than judged, because one `import` statement can carry a
 constants table and a seed's own work together and no rule over names separates them.
-siddy finds them by scanning the import statements as text — a bare specifier or a
+sidder finds them by scanning the import statements as text — a bare specifier or a
 `tsconfig` alias is not resolved, so an import written that way is not reported.
 
 ### `environments` — a gate that cannot be forgotten
@@ -203,7 +203,7 @@ transaction**. A crash rolls back the seed's writes and the record of them toget
 There is no half-applied state to repair, and the next run simply does that seed again.
 
 Set `transaction: false` for bulk loads where one transaction would be too large. When
-you do, `siddy status` marks the seed `no transaction`, and if it fails, siddy says
+you do, `sidder status` marks the seed `no transaction`, and if it fails, sidder says
 plainly that its writes are still in the database:
 
 ```
@@ -217,7 +217,7 @@ A seed's name is its filename without the extension. That name is what `dependsO
 `--only` and the journal use, so renaming the file renames the seed. Set `name`
 explicitly as soon as anything depends on it.
 
-siddy catches both halves of that mistake: a `dependsOn` pointing at a name that no
+sidder catches both halves of that mistake: a `dependsOn` pointing at a name that no
 longer exists is an error, and a journal row with no seed to match it is reported by
 `status` as an orphan.
 
@@ -246,27 +246,27 @@ scripts in `package.json`. Order, journal, environments and `status` work immedi
 
 **One trap, and it is worth reading.** If the code you are wrapping writes through an
 imported `db` global rather than the `db` it is handed, those writes go around the
-transaction siddy opened, silently. The atomicity would be a lie. Until you have
+transaction sidder opened, silently. The atomicity would be a lie. Until you have
 threaded the handle through, set `transaction: false` — `status` will show it, which is
-better than a promise siddy cannot keep.
+better than a promise sidder cannot keep.
 
 ---
 
 ## Running it
 
 ```bash
-siddy run                                  # everything not yet applied, in order
-siddy run --env production                 # environment gates apply
-siddy run --only roles,territory           # exactly these
-siddy run --dry-run                        # decide everything, execute nothing
-siddy status                               # what has run, what would, in what order
-siddy status --json                        # the same, for scripts and agents
-siddy forget demo                          # drop journal rows so their seeds run again
-siddy init                                 # write a starting config
+sidder run                                  # everything not yet applied, in order
+sidder run --env production                 # environment gates apply
+sidder run --only roles,territory           # exactly these
+sidder run --dry-run                        # decide everything, execute nothing
+sidder status                               # what has run, what would, in what order
+sidder status --json                        # the same, for scripts and agents
+sidder forget demo                          # drop journal rows so their seeds run again
+sidder init                                 # write a starting config
 ```
 
 `--only` runs exactly what you name. It does **not** pull dependencies in — if
-something you selected needs something you did not, siddy stops and prints the command
+something you selected needs something you did not, sidder stops and prints the command
 to run instead. A dependency skipped by `environments` is fine, because that gate is a
 decision you wrote into a file; a name missing from `--only` is a typo you made thirty
 seconds ago.
@@ -277,18 +277,18 @@ seconds ago.
 editor. It ran, you changed a line, and the journal now says there is nothing to do.
 
 ```bash
-siddy run --only demo --force   # apply it again, journal or not
-siddy forget demo               # drop its row, then run normally
+sidder run --only demo --force   # apply it again, journal or not
+sidder forget demo               # drop its row, then run normally
 ```
 
 `--force` defeats the journal and nothing else: `environments` still applies, because
-that gate is a decision written into the seed file rather than something siddy worked
+that gate is a decision written into the seed file rather than something sidder worked
 out. Forcing past it would not be impatience, it would be seeding production data into
 development.
 
 `--only` alone stays a filter — it narrows the set and the ordinary rules still apply,
 which is what keeps `--only a,b` safe in a deploy script. When that means nothing runs,
-siddy says so and prints both commands above rather than leaving you to wonder.
+sidder says so and prints both commands above rather than leaving you to wonder.
 
 `forget` works on the journal, not on the seed list. That is deliberate: the row left
 behind by a renamed file — the one `status` reports as an orphan — is exactly a thing
@@ -301,7 +301,7 @@ you need to be able to delete, and it has no seed to look up.
 The CLI is a formatter wrapped around one function. Tests want the function.
 
 ```ts
-import { runSeeds } from 'siddy';
+import { runSeeds } from 'sidder';
 
 await runSeeds(
   { adapter, seeds: [rolesSeed, territorySeed] },   // seed objects, no filesystem
@@ -337,8 +337,8 @@ interface Scope<TDb> {
 }
 ```
 
-`siddy/adapters/pg` and `siddy/adapters/drizzle` ship with it. Writing your own is
-about ten lines, and doing so is the best way to see exactly what siddy does to your
+`sidder/adapters/pg` and `sidder/adapters/drizzle` ship with it. Writing your own is
+about ten lines, and doing so is the best way to see exactly what sidder does to your
 database — which is a handful of statements against one table, plus one advisory lock.
 
 ```ts
@@ -370,7 +370,7 @@ const adapter = {
 One table, plain columns, readable in psql:
 
 ```sql
-create table siddy_journal (
+create table sidder_journal (
   name        text        primary key,
   applied_at  timestamptz not null default now(),
   environment text        not null,
@@ -382,8 +382,8 @@ It lives in your database rather than in a file for exactly one reason: so it ca
 written inside the same transaction as the seed it records. Rename it with
 `journalTable` in your config.
 
-Deleting a row makes its seed runnable again, which is all `siddy forget` does — and
-you are welcome to do it in psql instead. Nothing else in siddy depends on the row
+Deleting a row makes its seed runnable again, which is all `sidder forget` does — and
+you are welcome to do it in psql instead. Nothing else in sidder depends on the row
 existing.
 
 ---
@@ -393,12 +393,12 @@ existing.
 Two replicas in a deploy, or two jobs in one pipeline, do not apply anything twice.
 
 The reason the naive version of this is wrong is worth stating, because it is the bug
-siddy had: reading the journal once at the start and deciding from it means two runs that
+sidder had: reading the journal once at the start and deciding from it means two runs that
 start together both read an empty journal and both decide to run everything. The journal
 then covers its own tracks, since recording an applied seed upserts — so the table
 afterwards reads exactly as it should while the data went in twice.
 
-So the plan siddy prints is a forecast. The ruling is made per seed, immediately before
+So the plan sidder prints is a forecast. The ruling is made per seed, immediately before
 it runs, inside its own transaction: an advisory lock on the seed's name, then a re-read
 of that one row. The second run waits for the first, sees the row, and reports `skipped`
 — which is what actually happened to it. Nothing is configurable here and there is no
@@ -410,7 +410,7 @@ The wait is announced, on a terminal and in a log both:
   ⋯ demo   waiting — another run is applying this seed; this one continues when it finishes
 ```
 
-siddy asks for the lock without blocking first, so that line appears only when the
+sidder asks for the lock without blocking first, so that line appears only when the
 database has actually refused it. A run with no competition prints nothing extra and
 costs the same one statement it always did.
 
@@ -429,16 +429,16 @@ Two exceptions, both honest:
 
 ## Runtimes
 
-siddy runs your seeds in its own process — one process, one connection — so the runtime
+sidder runs your seeds in its own process — one process, one connection — so the runtime
 you launch it with is the one that has to read TypeScript. It ships **no loader** and
 has **no runtime dependencies**:
 
 | Runtime | TypeScript | `tsconfig` paths |
 |---|---|---|
-| `bun --bun siddy run` | native | yes |
+| `bun --bun sidder run` | native | yes |
 | Node >= 22.18 | native type stripping | no |
-| `node --import tsx …/siddy run` | via tsx | yes |
-| Node < 22.18, no loader | no — siddy says so, and what to do about it | — |
+| `node --import tsx …/sidder run` | via tsx | yes |
+| Node < 22.18, no loader | no — sidder says so, and what to do about it | — |
 
 ---
 

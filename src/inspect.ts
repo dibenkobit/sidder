@@ -16,14 +16,14 @@ export interface SeedStatus {
   transaction: boolean;
   /** The journal row, or null if this seed has never run. */
   entry: JournalEntry | null;
-  /** What `siddy run` would do with it right now. */
+  /** What `sidder run` would do with it right now. */
   decision: Decision;
 }
 
 export interface Inspection {
   env: string;
   journalTable: string;
-  /** Where each value siddy worked out on its own came from. */
+  /** Where each value sidder worked out on its own came from. */
   sources: ResolvedConfig['sources'];
   /** The resolved run order, as names. */
   order: string[];
@@ -40,7 +40,7 @@ export interface Inspection {
    * Seed files that import another seed.
    *
    * The one thing here `only` does not narrow. Every other field answers "what would
-   * `siddy run` do", which the selection is part of; this one answers "what is in these
+   * `sidder run` do", which the selection is part of; this one answers "what is in these
    * files", which it is not — the import statement is there whether or not you asked
    * about either seed, and the run that selects only the importer is the one where the
    * second application is hardest to see. `run` reports the same set.
@@ -49,7 +49,7 @@ export interface Inspection {
 }
 
 /**
- * Everything `siddy status` prints, as data.
+ * Everything `sidder status` prints, as data.
  *
  * Exported because the answer to "what state is this database in" should be available
  * to a script or an agent without parsing a terminal table.
@@ -80,7 +80,7 @@ export async function inspect<TDb>(
     mode: seed.mode ?? 'once',
     transaction: seed.transaction ?? true,
     entry: journal.get(seed.name) ?? null,
-    // Deliberately unforced: `status` answers "what would `siddy run` do", and the
+    // Deliberately unforced: `status` answers "what would `sidder run` do", and the
     // answer under --force is "all of them", which is not worth printing.
     decision: decide(seed, { env, journal, only, force: false }),
   }));

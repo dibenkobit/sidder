@@ -157,13 +157,13 @@ describe('runSeeds', () => {
     await runSeeds(config);
 
     expect(seenWhenTheSeedRan).toEqual([
-      'create table if not exists siddy_journal (',
-      'select name, applied_at, environment, duration_ms from siddy_journal',
+      'create table if not exists sidder_journal (',
+      'select name, applied_at, environment, duration_ms from sidder_journal',
       // The try, and only the try: nothing holds this lock, so the blocking statement
       // behind it is never issued and the uncontended run costs the round trip it always
       // did. Two statements here would mean every run had started paying for the rare one.
       'select pg_try_advisory_xact_lock(hashtext($1), hashtext($2))',
-      'select name, applied_at, environment, duration_ms from siddy_journal where name = $1',
+      'select name, applied_at, environment, duration_ms from sidder_journal where name = $1',
     ]);
   });
 
@@ -419,7 +419,7 @@ describe('runSeeds', () => {
 /**
  * Real files, because the finding is made by reading them. `tests/fixtures/cross` is the
  * real consumer's shape: `demo` imports `territory`'s constants and its work in one
- * statement, and siddy runs `territory` as a seed as well.
+ * statement, and sidder runs `territory` as a seed as well.
  */
 describe('runSeeds and seeds that import each other', () => {
   /** A run over the fixture directory, with every event it emitted. */

@@ -9,13 +9,13 @@ services:
   postgres:
     image: postgres:18
     environment:
-      POSTGRES_USER: siddy
-      POSTGRES_PASSWORD: siddy
-      POSTGRES_DB: siddy
+      POSTGRES_USER: sidder
+      POSTGRES_PASSWORD: sidder
+      POSTGRES_DB: sidder
     ports:
       - '55432:5432'
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U siddy']
+      test: ['CMD-SHELL', 'pg_isready -U sidder']
       interval: 1s
       timeout: 3s
       retries: 30

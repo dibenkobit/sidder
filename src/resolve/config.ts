@@ -5,20 +5,20 @@ import type { Adapter, Config, Seed } from '../types.ts';
 import { importModule } from './load-module.ts';
 
 export const CONFIG_FILENAMES = [
-  'siddy.config.ts',
-  'siddy.config.mts',
-  'siddy.config.js',
-  'siddy.config.mjs',
+  'sidder.config.ts',
+  'sidder.config.mts',
+  'sidder.config.js',
+  'sidder.config.mjs',
 ];
 
 export const DEFAULT_SEED_GLOB = 'seeds/**/*.ts';
-export const DEFAULT_JOURNAL_TABLE = 'siddy_journal';
+export const DEFAULT_JOURNAL_TABLE = 'sidder_journal';
 
 /**
- * A config with every default filled in — plus, for each value siddy worked out on
+ * A config with every default filled in — plus, for each value sidder worked out on
  * its own, a note saying where it came from.
  *
- * siddy is allowed to guess. It is not allowed to guess quietly: `sources` is what
+ * sidder is allowed to guess. It is not allowed to guess quietly: `sources` is what
  * the run header prints, so the answer to "why is it seeding staging?" is on screen
  * before anything touches the database.
  */

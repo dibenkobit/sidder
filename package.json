@@ -1,5 +1,5 @@
 {
-  "name": "siddy",
+  "name": "sidder",
   "version": "0.0.1",
   "description": "A seed runner. Migrations got one fifteen years ago; seeds never did.",
   "type": "module",
@@ -8,10 +8,10 @@
   "author": "Nikita Snetkov",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/dibenkobit/siddy.git"
+    "url": "git+https://github.com/dibenkobit/sidder.git"
   },
-  "homepage": "https://github.com/dibenkobit/siddy#readme",
-  "bugs": "https://github.com/dibenkobit/siddy/issues",
+  "homepage": "https://github.com/dibenkobit/sidder#readme",
+  "bugs": "https://github.com/dibenkobit/sidder/issues",
   "keywords": [
     "seed",
     "seeds",
@@ -28,7 +28,7 @@
     "node": ">=22"
   },
   "bin": {
-    "siddy": "./dist/cli/main.js"
+    "sidder": "./dist/cli/main.js"
   },
   "exports": {
     ".": {
@@ -58,7 +58,7 @@
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
     "test": "bun test",
-    "test:pg": "SIDDY_TEST_DATABASE_URL=postgresql://siddy:siddy@localhost:55432/siddy bun test",
+    "test:pg": "SIDDER_TEST_DATABASE_URL=postgresql://sidder:sidder@localhost:55432/sidder bun test",
     "db:up": "docker compose up -d --wait",
     "db:down": "docker compose down -v",
     "check": "bun run lint && bun run typecheck && bun test",

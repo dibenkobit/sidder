@@ -58,12 +58,12 @@ jobs:
       postgres:
         image: postgres:18
         env:
-          POSTGRES_USER: siddy
-          POSTGRES_PASSWORD: siddy
-          POSTGRES_DB: siddy
+          POSTGRES_USER: sidder
+          POSTGRES_PASSWORD: sidder
+          POSTGRES_DB: sidder
         ports: ['55432:5432']
         options: >-
-          --health-cmd "pg_isready -U siddy"
+          --health-cmd "pg_isready -U sidder"
           --health-interval 1s
           --health-timeout 3s
           --health-retries 30

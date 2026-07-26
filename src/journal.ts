@@ -23,7 +23,7 @@ const SQL_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
 /**
  * The columns a journal is made of, in the order `ensureJournal` writes them.
  *
- * Kept as data because a table siddy did not create has to be compared against it — see
+ * Kept as data because a table sidder did not create has to be compared against it — see
  * {@link mismatchOf}. Adding a column here means adding it to the DDL below as well.
  */
 const JOURNAL_COLUMNS = ['name', 'applied_at', 'environment', 'duration_ms'] as const;
@@ -115,7 +115,7 @@ export async function readJournalEntry(
 /**
  * Asks for one seed's lock without waiting for it. True means this transaction has it now.
  *
- * The first half of {@link lockSeed}'s protocol, and it exists so that siddy can say it is
+ * The first half of {@link lockSeed}'s protocol, and it exists so that sidder can say it is
  * waiting for another run only when it has been told that it is. Blocking straight away is
  * silent — the symptom this splits the call in two to fix — and announcing a wait before
  * every lock would announce one on every seed of every run, including the overwhelming
@@ -146,7 +146,7 @@ export async function tryLockSeed(scope: Scope, table: string, name: string): Pr
  * Waits for one seed's lock, and holds it until the surrounding transaction ends.
  *
  * The blocking half, reached only once {@link tryLockSeed} has been refused. Together they
- * are what stops two `siddy run` processes from both applying the same seed. It is an
+ * are what stops two `sidder run` processes from both applying the same seed. It is an
  * advisory lock rather than a row or table lock because there is nothing to lock yet — the
  * whole question is whether the row should come into existence — and `_xact_` because that
  * variant releases on commit or rollback with nothing to unlock by hand. A session-level
@@ -245,13 +245,13 @@ function toEntry(row: Row): JournalEntry {
  * lines; the in-memory adapter these tests run on could not answer one.
  *
  * What that choice costs is on the line above: this explains a read that failed, and
- * nothing else. `siddy forget` against a foreign table that happens to have a `name`
+ * nothing else. `sidder forget` against a foreign table that happens to have a `name`
  * column deletes from it and no read ever fails. Reaching that needs `forget` to be the
  * first command ever run against the mistake, because `run` and `status` both read.
  *
  * Columns are compared by name, not by type. A table that collides with the journal's
  * name almost never has the journal's four column names too, and comparing types would
- * mean teaching siddy that `timestamptz` and `timestamp with time zone` are one thing —
+ * mean teaching sidder that `timestamptz` and `timestamp with time zone` are one thing —
  * machinery whose failure mode is refusing to run against a journal that is fine.
  */
 async function mismatchOf(scope: Scope, table: string): Promise<JournalTableMismatchError | null> {
@@ -278,10 +278,10 @@ async function mismatchOf(scope: Scope, table: string): Promise<JournalTableMism
     return null;
   }
 
-  // No columns means no table siddy can see, which is some other problem than this one.
+  // No columns means no table sidder can see, which is some other problem than this one.
   if (found.length === 0) return null;
 
-  // A superset is a journal: an extra column of your own does not stop siddy reading its
+  // A superset is a journal: an extra column of your own does not stop sidder reading its
   // four, so it is not something to refuse to run over.
   if (JOURNAL_COLUMNS.every((column) => found.includes(column))) return null;
 

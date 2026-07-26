@@ -10,7 +10,7 @@ export {
   ModuleResolutionError,
   ModuleSyntaxError,
   NoSeedsFoundError,
-  SiddyError,
+  SidderError,
   TypeScriptLoaderError,
   UnknownDependencyError,
   UnnamedInlineSeedError,

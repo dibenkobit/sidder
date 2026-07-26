@@ -30,15 +30,15 @@ import { runInit } from './init.ts';
 const VERSION = (createRequire(import.meta.url)('../../package.json') as { version: string })
   .version;
 
-const HELP = `siddy ${VERSION} — a seed runner
+const HELP = `sidder ${VERSION} — a seed runner
 
-  siddy run          run every seed that has not run yet, in dependency order
-  siddy status       show what has run, what would run, and in what order
-  siddy forget <a>   drop seeds from the journal so they run again
-  siddy init         write a starting siddy.config.ts
+  sidder run          run every seed that has not run yet, in dependency order
+  sidder status       show what has run, what would run, and in what order
+  sidder forget <a>   drop seeds from the journal so they run again
+  sidder init         write a starting sidder.config.ts
 
 Options
-  -c, --config <path>   config file (default: nearest siddy.config.ts, searching upwards)
+  -c, --config <path>   config file (default: nearest sidder.config.ts, searching upwards)
   -e, --env <name>      environment to run as (default: NODE_ENV, then "development")
       --only <a,b>      run exactly these seeds; dependencies are not pulled in
       --force           run: apply seeds the journal has already recorded
@@ -51,10 +51,10 @@ Options
 
 The seed you are editing right now is the one case the journal gets in the way of:
 
-  siddy run --only demo --force   apply it again, journal or not
-  siddy forget demo               drop its row, then run normally
+  sidder run --only demo --force   apply it again, journal or not
+  sidder forget demo               drop its row, then run normally
 
-siddy imports your seeds with the runtime it was launched with, so run it under Bun or
+sidder imports your seeds with the runtime it was launched with, so run it under Bun or
 Node >= 22.18 for TypeScript to work without a loader.`;
 
 const OPTIONS = {
@@ -314,7 +314,7 @@ async function commandStatus(values: Values & { json: boolean }): Promise<number
 async function commandForget(values: Values, names: string[]): Promise<number> {
   if (names.length === 0) {
     console.error(`${style.red('error')} forget needs at least one seed name`);
-    console.error(style.dim('  siddy forget demo — `siddy status` lists the names'));
+    console.error(style.dim('  sidder forget demo — `sidder status` lists the names'));
     return 1;
   }
 
