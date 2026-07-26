@@ -35,14 +35,32 @@ export function decide<TDb>(seed: ResolvedSeed<TDb>, input: PlanInput): Decision
     return { action: 'skip', reason: { kind: 'wrong-env', allowed: seed.environments } };
   }
 
-  if (input.force) return { action: 'run' };
-
   // Without a journal there is nothing to consult, so `mode` has nothing to mean.
   if (input.journal === null) return { action: 'run' };
 
+  return decideFromJournal(seed, input.journal.get(seed.name), input.force);
+}
+
+/**
+ * The journal half of `decide`, on its own, because the runner asks it twice.
+ *
+ * The first answer comes from the journal as it was when the run started, which is what
+ * gets printed in the plan. The second comes from this seed's own row read inside the
+ * scope it is about to run in, and it is the one that decides — a concurrent run may have
+ * applied the seed in between. See `executeSeed`.
+ *
+ * Both callers need the same rule, and a rule about when a seed may run twice is not a
+ * thing to have two copies of.
+ */
+export function decideFromJournal<TDb>(
+  seed: ResolvedSeed<TDb>,
+  entry: JournalEntry | undefined,
+  force: boolean,
+): Decision {
+  if (force) return { action: 'run' };
+
   if ((seed.mode ?? 'once') === 'always') return { action: 'run' };
 
-  const entry = input.journal.get(seed.name);
   if (entry !== undefined) {
     return { action: 'skip', reason: { kind: 'already-applied', appliedAt: entry.appliedAt } };
   }

@@ -6,15 +6,16 @@ import { type DrizzleLike, drizzleAdapter } from '../src/adapters/drizzle.ts';
 import { type PgPool, type PgQueryable, pgAdapter } from '../src/adapters/pg.ts';
 import { forgetApplied } from '../src/journal.ts';
 import { runSeeds } from '../src/run.ts';
-import type { Config, Seed } from '../src/types.ts';
+import type { Config, RunEvent, Seed } from '../src/types.ts';
 
 /**
  * The integration tests. `bun run db:up && bun run test:pg`.
  *
  * Everything else in this suite runs against an in-memory adapter, which is fast and
- * proves the runner's decisions. It cannot prove the two things only a real database
- * can: that the journal statements are valid SQL on Postgres, and that a failing seed
- * really does take its journal row down with it. That is what is here.
+ * proves the runner's decisions. It cannot prove the three things only a real database
+ * can: that the journal statements are valid SQL on Postgres, that a failing seed really
+ * does take its journal row down with it, and that two runs at once apply each seed once.
+ * That is what is here.
  *
  * runSeeds never calls `adapter.close()` — that is the CLI's job — so these tests can
  * share one pool across every case and close it once at the end.
@@ -184,6 +185,160 @@ describeIf('against a real Postgres', () => {
 
       expect(await countWidgets()).toBe(2);
       expect(await journalNames()).toEqual(['widgets']);
+    });
+
+    /**
+     * Two `sowme run` at once — two replicas in a deploy, two jobs in one pipeline.
+     *
+     * The dangerous window is between reading the journal and committing the seed: both
+     * runs read an empty journal, both decide to run, and the second one's `on conflict
+     * do update` then absorbs its own duplicate journal row, so the table afterwards
+     * reads exactly as it should while the data was applied twice.
+     *
+     * The barrier holds the first seed inside its transaction until both runs have
+     * planned, which is precisely that window, held open on purpose. Without the per-seed
+     * lock and the re-read behind it these tests insert two rows and report two `applied`.
+     */
+    function planBarrier(runs: number) {
+      let release = (): void => {};
+      const bothPlanned = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      let planned = 0;
+
+      return {
+        bothPlanned,
+        // The plan event is emitted once the journal has been read and every decision
+        // made, so counting them is how a test knows both runs hold a stale view.
+        onEvent: (event: RunEvent) => {
+          if (event.type === 'plan' && ++planned === runs) release();
+        },
+      };
+    }
+
+    test('two concurrent runs apply a seed exactly once', async () => {
+      const { bothPlanned, onEvent } = planBarrier(2);
+
+      const seeds: Seed<PgQueryable>[] = [
+        {
+          name: 'widgets',
+          run: async ({ db }) => {
+            await bothPlanned;
+            await db.query("insert into widgets (label) values ('one')");
+          },
+        },
+      ];
+
+      const runs = await Promise.all([
+        runSeeds(configOf(seeds), { onEvent }),
+        runSeeds(configOf(seeds), { onEvent }),
+      ]);
+
+      expect(await countWidgets()).toBe(1);
+      expect(await journalNames()).toEqual(['widgets']);
+
+      // Which run wins the lock is not ours to decide; that one of them loses and says so
+      // is. The loser reports `skipped`, because skipping is what it did.
+      expect(runs.map((run) => run.outcomes[0]?.status).sort()).toEqual(['applied', 'skipped']);
+      expect(
+        runs.flatMap((run) => run.outcomes).filter((o) => o.status === 'skipped')[0],
+      ).toMatchObject({ reason: { kind: 'already-applied' } });
+    });
+
+    test('two concurrent runs of a two-seed project apply each seed once, in order', async () => {
+      const { bothPlanned, onEvent } = planBarrier(2);
+
+      const seeds: Seed<PgQueryable>[] = [
+        {
+          name: 'first',
+          run: async ({ db }) => {
+            await bothPlanned;
+            await db.query("insert into widgets (label) values ('first')");
+          },
+        },
+        {
+          name: 'second',
+          dependsOn: ['first'],
+          run: async ({ db }) => {
+            // Proves the dependency survived the interleaving: both runs walk the seeds in
+            // dependency order and each seed is a barrier, so whichever run reaches
+            // `second` does so with `first` committed — by itself or by the other one.
+            const { rows } = await db.query("select 1 from widgets where label = 'first'");
+            expect(rows).toHaveLength(1);
+            await db.query("insert into widgets (label) values ('second')");
+          },
+        },
+      ];
+
+      await Promise.all([
+        runSeeds(configOf(seeds), { onEvent }),
+        runSeeds(configOf(seeds), { onEvent }),
+      ]);
+
+      expect(await countWidgets()).toBe(2);
+      expect(await journalNames()).toEqual(['first', 'second']);
+    });
+
+    test('two concurrent runs of an always seed both apply it', async () => {
+      const { bothPlanned, onEvent } = planBarrier(2);
+
+      // `always` means every invocation, and two invocations are two. The lock serialises
+      // them so they cannot collide inside the database; it must not silence one of them.
+      const seeds: Seed<PgQueryable>[] = [
+        {
+          name: 'widgets',
+          mode: 'always',
+          run: async ({ db }) => {
+            await bothPlanned;
+            await db.query("insert into widgets (label) values ('again')");
+          },
+        },
+      ];
+
+      const runs = await Promise.all([
+        runSeeds(configOf(seeds), { onEvent }),
+        runSeeds(configOf(seeds), { onEvent }),
+      ]);
+
+      expect(await countWidgets()).toBe(2);
+      expect(await journalNames()).toEqual(['widgets']);
+      expect(runs.map((run) => run.outcomes[0]?.status)).toEqual(['applied', 'applied']);
+    });
+
+    test('a transaction: false seed re-reads the journal and skips a row that arrived late', async () => {
+      /**
+       * The one seed that cannot hold a lock, so all it gets is a look before it leaps.
+       *
+       * `first` writes `bulk`'s journal row through the pool rather than through its own
+       * transaction, so the row commits immediately — which is what another process
+       * finishing `bulk` looks like from in here. This run planned before it existed.
+       */
+      const seeds: Seed<PgQueryable>[] = [
+        {
+          name: 'first',
+          run: async () => {
+            await pool.query(
+              `insert into ${JOURNAL} (name, environment, duration_ms) values ('bulk', 'test', 1)`,
+            );
+          },
+        },
+        {
+          name: 'bulk',
+          dependsOn: ['first'],
+          transaction: false,
+          run: async ({ db }) => {
+            await db.query("insert into widgets (label) values ('applied twice')");
+          },
+        },
+      ];
+
+      const result = await runSeeds(configOf(seeds));
+
+      expect(await countWidgets()).toBe(0);
+      expect(result.outcomes[1]).toMatchObject({
+        status: 'skipped',
+        reason: { kind: 'already-applied' },
+      });
     });
 
     test('an always seed re-runs and its journal row moves forward', async () => {

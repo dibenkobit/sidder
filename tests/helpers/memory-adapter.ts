@@ -9,9 +9,15 @@ import type { Adapter, JournalEntry, Row, Scope } from '../../src/types.ts';
  * copy that replaces the committed state on success and is thrown away on failure —
  * which is what a real ROLLBACK does, expressed in twenty lines.
  *
- * It recognises sowme's four journal statements rather than parsing SQL. That is a
- * deliberate limit: these tests prove the runner's decisions, and the SQL itself is
- * proved against a real Postgres in postgres.test.ts.
+ * It recognises sowme's journal statements rather than parsing SQL. That is a deliberate
+ * limit: these tests prove the runner's decisions, and the SQL itself is proved against a
+ * real Postgres in postgres.test.ts.
+ *
+ * What it deliberately does not model is one process observing another's commit. A staged
+ * copy taken at `begin` is repeatable read, not read committed, and the advisory lock is a
+ * no-op because there is nobody to exclude. So the per-seed lock and re-read are visible
+ * here — `statements` records them, in order — but only postgres.test.ts can show them
+ * doing their job.
  */
 
 export interface MemoryState {
@@ -82,13 +88,23 @@ function applyJournalStatement(state: MemoryState, sql: string, params: readonly
 
   if (statement.startsWith('create table')) return [];
 
+  // Nothing to exclude in one process, but it has to be answered rather than rejected,
+  // and tests that care assert it was issued before the seed ran.
+  if (statement.startsWith('select pg_advisory_xact_lock')) return [];
+
   if (statement.startsWith('select')) {
-    return [...state.journal.values()].map((entry) => ({
-      name: entry.name,
-      applied_at: entry.appliedAt,
-      environment: entry.environment,
-      duration_ms: entry.durationMs,
-    }));
+    // `where name = $1`: one seed's row, which is what the check inside a seed's own
+    // transaction reads. Without the clause, the whole journal.
+    const wanted = statement.includes('where name =') ? (params[0] as string) : null;
+
+    return [...state.journal.values()]
+      .filter((entry) => wanted === null || entry.name === wanted)
+      .map((entry) => ({
+        name: entry.name,
+        applied_at: entry.appliedAt,
+        environment: entry.environment,
+        duration_ms: entry.durationMs,
+      }));
   }
 
   if (statement.startsWith('insert into')) {

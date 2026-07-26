@@ -1,5 +1,5 @@
 import { UnsafeTableNameError } from './errors.ts';
-import type { JournalEntry, Scope } from './types.ts';
+import type { JournalEntry, Row, Scope } from './types.ts';
 
 /**
  * The journal: one row per seed that has been applied.
@@ -12,6 +12,10 @@ import type { JournalEntry, Scope } from './types.ts';
  * without the other.
  *
  * It is a plain table with obvious column names. Read it with psql whenever you want.
+ *
+ * The lock that keeps two runs from applying the same seed lives in this file too. It is
+ * not part of the table, but it is keyed on it, and it exists to answer the same question
+ * the table does.
  */
 
 const SQL_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -27,16 +31,43 @@ export function assertSafeTableName(table: string): void {
   }
 }
 
+/**
+ * Creates the journal table if it is not there, and tolerates another run creating it at
+ * the same moment.
+ *
+ * `if not exists` looks in the catalogue and then creates, and those are not one atomic
+ * step: two runs starting together both see no table, and the loser fails on pg_type's
+ * unique index rather than being told the table already exists. Measured at eight-way
+ * concurrency on Postgres 18 that happens on roughly half of all attempts, so two
+ * replicas booting against a fresh database hit it routinely rather than rarely.
+ *
+ * Hence the second attempt, which is the one that finds the table there and does nothing.
+ * If it fails as well then the race was never the problem — a missing privilege, a name
+ * already taken by something that is not a journal — and the first error is the one that
+ * says so, which is why the retry is not allowed to replace it.
+ */
 export async function ensureJournal(scope: Scope, table: string): Promise<void> {
   assertSafeTableName(table);
-  await scope.execute(
-    `create table if not exists ${table} (
+
+  const create = () =>
+    scope.execute(
+      `create table if not exists ${table} (
        name        text        primary key,
        applied_at  timestamptz not null default now(),
        environment text        not null,
        duration_ms integer     not null
      )`,
-  );
+    );
+
+  try {
+    await create();
+  } catch (firstAttempt) {
+    try {
+      await create();
+    } catch {
+      throw firstAttempt;
+    }
+  }
 }
 
 export async function readJournal(scope: Scope, table: string): Promise<Map<string, JournalEntry>> {
@@ -45,17 +76,52 @@ export async function readJournal(scope: Scope, table: string): Promise<Map<stri
     `select name, applied_at, environment, duration_ms from ${table}`,
   );
 
-  return new Map(
-    rows.map((row) => {
-      const entry: JournalEntry = {
-        name: String(row['name']),
-        appliedAt: toDate(row['applied_at']),
-        environment: String(row['environment']),
-        durationMs: Number(row['duration_ms']),
-      };
-      return [entry.name, entry];
-    }),
+  return new Map(rows.map(toEntry).map((entry) => [entry.name, entry]));
+}
+
+/**
+ * Reads one seed's row, for asking the journal question a second time inside the scope a
+ * seed is about to run in. See `executeSeed` for why once is not enough.
+ */
+export async function readJournalEntry(
+  scope: Scope,
+  table: string,
+  name: string,
+): Promise<JournalEntry | undefined> {
+  assertSafeTableName(table);
+  const rows = await scope.execute(
+    `select name, applied_at, environment, duration_ms from ${table} where name = $1`,
+    [name],
   );
+
+  const row = rows[0];
+  return row === undefined ? undefined : toEntry(row);
+}
+
+/**
+ * Takes an exclusive lock on one seed's name, held until the surrounding transaction ends.
+ *
+ * This is what stops two `sowme run` processes from both applying the same seed. It is an
+ * advisory lock rather than a row or table lock because there is nothing to lock yet — the
+ * whole question is whether the row should come into existence — and `_xact_` because that
+ * variant releases on commit or rollback with nothing to unlock by hand. A session-level
+ * lock would need a connection of its own: `Adapter.root` is a pool for both shipped
+ * adapters, so the unlock could land on a different connection than the lock and leak.
+ *
+ * The key is a pair rather than a single bigint so it cannot collide with a lock your
+ * application takes — Postgres keeps the one-argument and two-argument keyspaces apart —
+ * and hashing the table name means two projects sharing one database with different
+ * `journalTable`s never wait on each other. `hashtext` is undocumented but ancient and
+ * stable; nothing here depends on its output being the same across Postgres versions,
+ * only on two sessions on one server agreeing, which is by definition true.
+ *
+ * Collisions between two seed names are possible in an int4 and harmless: the cost is one
+ * seed waiting for an unrelated one, and a transaction only ever holds one of these locks
+ * at a time, so no ordering deadlock exists to worry about.
+ */
+export async function lockSeed(scope: Scope, table: string, name: string): Promise<void> {
+  assertSafeTableName(table);
+  await scope.execute('select pg_advisory_xact_lock(hashtext($1), hashtext($2))', [table, name]);
 }
 
 /**
@@ -107,6 +173,15 @@ export async function forgetApplied(
   );
 
   return rows.map((row) => String(row['name']));
+}
+
+function toEntry(row: Row): JournalEntry {
+  return {
+    name: String(row['name']),
+    appliedAt: toDate(row['applied_at']),
+    environment: String(row['environment']),
+    durationMs: Number(row['duration_ms']),
+  };
 }
 
 /** Drivers hand back a Date, a string, or a number depending on the driver. */
