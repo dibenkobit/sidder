@@ -1,0 +1,25 @@
+version: 2
+
+updates:
+  # Actions are the supply chain most likely to be forgotten and the one that has
+  # actually been attacked. Grouped so it stays one pull request a month, and so the
+  # commit pins in release.yml move together with the comments naming their version.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ['*']
+
+  # Dependabot reads bun.lock directly, so its pull requests survive the frozen
+  # lockfile check in ci. Grouped for the same reason as above: seven devDependencies
+  # are not worth seven pull requests. Note that bun here is version updates only —
+  # a vulnerable transitive dependency will not raise a pull request of its own.
+  - package-ecosystem: bun
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      dependencies:
+        patterns: ['*']

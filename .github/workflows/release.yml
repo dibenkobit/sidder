@@ -1,0 +1,98 @@
+name: release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# The opposite of ci's rule. Cancelling a publish halfway leaves a tag and a GitHub
+# release with nothing on npm behind them, and that is not a state you can push your
+# way out of — the version number is spent.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+# Actions are pinned to a commit here, and only here. This is the one job that can
+# publish, so a moved tag would cost the package itself rather than a red run.
+# Dependabot moves the pins and rewrites the version comment beside them.
+jobs:
+  # Turns the conventional commits we already write into a release pull request.
+  # Merging that pull request tags the version, writes CHANGELOG.md and creates the
+  # GitHub release — which is the signal the job below waits for.
+  #
+  # It opens that pull request with the built-in GITHUB_TOKEN, and GitHub deliberately
+  # does not start workflows from it, so ci never runs on the release pull request.
+  # The publish job therefore runs the checks itself rather than trusting a green tick
+  # from an earlier commit.
+  prepare:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      created: ${{ steps.release.outputs.release_created }}
+    steps:
+      # Strategy lives in release-please-config.json. The action takes only a handful
+      # of inputs and silently warns about the rest, so anything it does not name
+      # belongs in the config file, not here.
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        id: release
+
+  publish:
+    needs: prepare
+    if: needs.prepare.outputs.created == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # The only credential in this repository. Trusted publishing exchanges this
+      # token with npm, so there is no NPM_TOKEN to leak or rotate, and provenance is
+      # attached automatically.
+      id-token: write
+
+    # The same database ci gets, on the same port, for the same reason: an in-memory
+    # adapter cannot prove that the journal SQL is real SQL. Publishing without that
+    # proof is exactly the case where it matters.
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: sowme
+          POSTGRES_PASSWORD: sowme
+          POSTGRES_DB: sowme
+        ports: ['55432:5432']
+        options: >-
+          --health-cmd "pg_isready -U sowme"
+          --health-interval 1s
+          --health-timeout 3s
+          --health-retries 30
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+
+      # Node 24 ships an npm new enough for trusted publishing on its own. This is
+      # also the newest Node the package claims to support, so publishing exercises
+      # one end of that range.
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      - run: bun install --frozen-lockfile
+
+      # ci's list, because this is the only place it runs for a release commit.
+      # `check` is lint, typecheck and the in-memory suite; test:pg is that same suite
+      # again, against the service above.
+      - run: bun run check
+      - run: bun run test:pg
+      - run: bun run build
+
+      # A broken exports map, a bin pointing at a file the build no longer emits, or a
+      # files list that forgot dist should fail here and not on the day of a release.
+      - run: npm pack --dry-run
+
+      # Publishing is the one thing bun cannot do here: `bun publish` has no OIDC or
+      # provenance support, so npm does this step and bun does the rest.
+      - run: npm publish
