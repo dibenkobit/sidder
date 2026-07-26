@@ -6,14 +6,15 @@ import { displayPath, loadConfigFile, type ResolvedConfig, resolveConfig } from 
 import { inspect } from '../inspect.ts';
 import { ensureJournal, forgetApplied } from '../journal.ts';
 import { runSeeds } from '../run.ts';
-import type { Config, RunEvent, SeedOutcome } from '../types.ts';
+import type { Config, RunEvent } from '../types.ts';
 import {
   CLEAR_LINE,
   formatDuration,
   formatError,
   formatForgotten,
   formatHeader,
-  formatNothingSelected,
+  formatNothingApplied,
+  formatNotSelected,
   formatSeedFailure,
   formatSkipReason,
   formatStatus,
@@ -150,7 +151,7 @@ async function commandRun(
   const {
     config,
     baseDir,
-    resolved: { env },
+    resolved: { env, sources },
   } = await open(values, { dryRun, force: values.force });
 
   /**
@@ -168,7 +169,12 @@ async function commandRun(
   const onEvent = (event: RunEvent): void => {
     switch (event.type) {
       case 'plan':
-        pad = padder(event.order);
+        // Padded to the names that will print rather than to every name in the project:
+        // under `--only` the rest never reach the report, and a column left wide enough
+        // for them is a gap standing in for a seed the reader cannot see.
+        pad = padder(
+          only === undefined ? event.order : event.order.filter((name) => only.includes(name)),
+        );
         break;
       case 'start':
         if (isInteractive) process.stdout.write(`  ${style.dim('⋯')} ${pad(event.name)}`);
@@ -179,6 +185,9 @@ async function commandRun(
         );
         break;
       case 'skipped':
+        // Every skip but one gets its own line. `--only`'s are counted and reported in a
+        // single line once the run is over, because forty-nine of them is not a report.
+        if (event.reason.kind === 'not-selected') break;
         write(
           `  ${style.dim('·')} ${pad(event.name)}  ${style.dim(formatSkipReason(event.reason, env))}`,
         );
@@ -203,6 +212,14 @@ async function commandRun(
 
     const applied = result.outcomes.filter((o) => o.status === 'applied').length;
     const skipped = result.outcomes.filter((o) => o.status === 'skipped').length;
+    const notSelected = result.outcomes.filter(
+      (o) => o.status === 'skipped' && o.reason.kind === 'not-selected',
+    ).length;
+
+    // The seeds `--only` left out, as the last line of the list they were left out of.
+    const filtered = formatNotSelected({ notSelected, total: result.outcomes.length, only });
+    if (filtered !== null) write(filtered);
+
     const verb = dryRun ? 'would apply' : 'applied';
     console.log('');
     console.log(
@@ -211,11 +228,17 @@ async function commandRun(
       ),
     );
 
-    // You named seeds and nothing happened. Say what to do about it.
-    const stale = applied > 0 || only === undefined ? [] : alreadyApplied(result.outcomes);
-    if (stale.length > 0) {
+    // A run that applied nothing is a legitimate outcome and it is also what every typo in
+    // this area looks like. Saying which of the two happened is the report's job.
+    const explanation = formatNothingApplied({
+      outcomes: result.outcomes,
+      only,
+      env,
+      envSource: sources.env,
+    });
+    if (explanation !== null) {
       console.log('');
-      console.log(formatNothingSelected(stale));
+      console.log(explanation);
     }
     return 0;
   } catch (error) {
@@ -237,16 +260,19 @@ async function commandRun(
 }
 
 async function commandStatus(values: Values & { json: boolean }): Promise<number> {
+  const only = parseOnly(values.only);
   const { config, baseDir } = await open(values, { json: values.json });
 
   try {
     const inspection = await inspect(config, {
       env: values.env,
       baseDir,
-      ...(values.only ? { only: parseOnly(values.only) } : {}),
+      ...(only ? { only } : {}),
     });
 
-    console.log(values.json ? JSON.stringify(inspection, null, 2) : formatStatus(inspection));
+    console.log(
+      values.json ? JSON.stringify(inspection, null, 2) : formatStatus(inspection, { only }),
+    );
     return 0;
   } finally {
     await config.adapter.close?.();
@@ -280,13 +306,6 @@ async function commandForget(values: Values, names: string[]): Promise<number> {
   } finally {
     await config.adapter.close?.();
   }
-}
-
-/** The seeds this run skipped because the journal already had them. */
-function alreadyApplied(outcomes: readonly SeedOutcome[]): string[] {
-  return outcomes
-    .filter((o) => o.status === 'skipped' && o.reason.kind === 'already-applied')
-    .map((o) => o.name);
 }
 
 /** `a,b` and `a, b` are both two names. */
