@@ -93,6 +93,12 @@ $ sowme status
   ✗ bulk-metrics  never run           after demo · no transaction
   ✗ fake-users    never run           development, staging only · after demo
 
+  no transaction means more than lost atomicity:
+    a failure leaves the seed's writes in the database, and nothing keeps a second run
+    off it either — the lock that does that is held by a transaction, and there is none.
+    A journal re-read immediately before it runs narrows that gap; it cannot close it.
+    Set `transaction: true` if either matters.
+
   order: roles → territory → demo → bulk-metrics → fake-users
 ```
 
@@ -378,6 +384,16 @@ it runs, inside its own transaction: an advisory lock on the seed's name, then a
 of that one row. The second run waits for the first, sees the row, and reports `skipped`
 — which is what actually happened to it. Nothing is configurable here and there is no
 flag to pass.
+
+The wait is announced, on a terminal and in a log both:
+
+```
+  ⋯ demo   waiting — another run is applying this seed; this one continues when it finishes
+```
+
+sowme asks for the lock without blocking first, so that line appears only when the
+database has actually refused it. A run with no competition prints nothing extra and
+costs the same one statement it always did.
 
 Two exceptions, both honest:
 

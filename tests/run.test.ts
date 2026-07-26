@@ -155,8 +155,29 @@ describe('runSeeds', () => {
     expect(seenWhenTheSeedRan).toEqual([
       'create table if not exists sowme_journal (',
       'select name, applied_at, environment, duration_ms from sowme_journal',
-      'select pg_advisory_xact_lock(hashtext($1), hashtext($2))',
+      // The try, and only the try: nothing holds this lock, so the blocking statement
+      // behind it is never issued and the uncontended run costs the round trip it always
+      // did. Two statements here would mean every run had started paying for the rare one.
+      'select pg_try_advisory_xact_lock(hashtext($1), hashtext($2))',
       'select name, applied_at, environment, duration_ms from sowme_journal where name = $1',
+    ]);
+  });
+
+  test('says nothing about waiting when nothing holds the seed', async () => {
+    // The defect in the obvious implementation of this event, pinned. Emitted before the
+    // lock rather than after being refused it, `waiting` would fire here — on a run with
+    // no competition at all — and claim a second run that does not exist.
+    const events: RunEvent[] = [];
+    const { config } = setup([writing('roles'), writing('demo', { dependsOn: ['roles'] })]);
+
+    await runSeeds(config, { onEvent: (event) => events.push(event) });
+
+    expect(events.map((event) => event.type)).toEqual([
+      'plan',
+      'start',
+      'applied',
+      'start',
+      'applied',
     ]);
   });
 
