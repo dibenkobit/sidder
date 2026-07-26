@@ -16,6 +16,7 @@ export {
   UnknownDependencyError,
   UnnamedInlineSeedError,
   UnsafeTableNameError,
+  UsageError,
 } from './errors.ts';
 export type { Inspection, SeedStatus } from './inspect.ts';
 export { inspect } from './inspect.ts';

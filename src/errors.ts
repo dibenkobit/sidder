@@ -20,6 +20,14 @@ export class SidderError extends Error {
   }
 }
 
+/** A command or flag combination the CLI cannot act on without guessing. */
+export class UsageError extends SidderError {
+  constructor(message: string, hint = 'Run `npx sidder --help` to see the supported commands.') {
+    super(message, hint);
+    this.name = 'UsageError';
+  }
+}
+
 export class ConfigNotFoundError extends SidderError {
   constructor(searched: string[], dir: string) {
     super(

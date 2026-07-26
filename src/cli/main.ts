@@ -2,6 +2,7 @@
 import { createRequire } from 'node:module';
 import { dirname } from 'node:path';
 import { parseArgs } from 'node:util';
+import { UsageError } from '../errors.ts';
 import { inspect } from '../inspect.ts';
 import { ensureJournal, forgetApplied } from '../journal.ts';
 import { loadConfigFile, type ResolvedConfig, resolveConfig } from '../resolve/config.ts';
@@ -36,45 +37,119 @@ const HELP = `sidder ${VERSION} — a seed runner
   sidder status       show what has run, what would run, and in what order
   sidder forget <a>   drop seeds from the journal so they run again
   sidder init         write a starting sidder.config.mts
+  sidder help <cmd>   show the options and examples for one command
 
-Options
-  -c, --config <path>   config file (default: nearest sidder.config.*, searching upwards)
-  -e, --env <name>      environment to run as (default: NODE_ENV, then "development")
-      --only <a,b>      run exactly these seeds; dependencies are not pulled in
-      --force           run: apply seeds the journal has already recorded
-                        init: overwrite an existing config
-      --dry-run         decide everything, execute nothing
-      --json            status as JSON
-      --trace           print stack traces instead of just the error
+Global options
+      --trace           print stack traces for unexpected errors
   -h, --help
   -v, --version
 
+Run \`npx sidder help <command>\` for command-specific options and examples.
+
 The seed you are editing right now is the one case the journal gets in the way of:
 
-  sidder run --only demo --force   apply it again, journal or not
-  sidder forget demo               drop its row, then run normally
+  npx sidder run --only demo --force   apply it again, journal or not
+  npx sidder forget demo               drop its row, then run normally
 
 sidder imports your seeds with the runtime it was launched with, so run it under Bun or
 Node >= 22.18 for TypeScript to work without a loader.`;
+
+const RUN_HELP = `sidder run — apply seeds in dependency order
+
+Usage
+  npx sidder run [options]
+
+Options
+  -c, --config <path>   config file (default: nearest sidder.config.*, searching upwards)
+  -e, --env <name>      environment (default: config, NODE_ENV, then "development")
+      --only <a,b>      run exactly these seeds; dependencies are not pulled in
+      --force           apply seeds the journal has already recorded
+      --dry-run         decide and print everything, execute nothing
+      --trace           print stack traces for unexpected errors
+  -h, --help
+
+Examples
+  npx sidder run
+  npx sidder run --env production
+  npx sidder run --only roles,territory
+  npx sidder run --only demo --force`;
+
+const STATUS_HELP = `sidder status — inspect seeds and journal state
+
+Usage
+  npx sidder status [options]
+
+Options
+  -c, --config <path>   config file (default: nearest sidder.config.*, searching upwards)
+  -e, --env <name>      environment (default: config, NODE_ENV, then "development")
+      --only <a,b>      narrow seed rows without changing the resolved order
+      --json            print the inspection object as JSON
+      --trace           print stack traces for unexpected errors
+  -h, --help
+
+Examples
+  npx sidder status
+  npx sidder status --env production
+  npx sidder status --json`;
+
+const FORGET_HELP = `sidder forget — remove journal rows so seeds can run again
+
+Usage
+  npx sidder forget <name...> [options]
+
+Options
+  -c, --config <path>   config file (default: nearest sidder.config.*, searching upwards)
+      --trace           print stack traces for unexpected errors
+  -h, --help
+
+Examples
+  npx sidder forget demo
+  npx sidder forget roles territory
+  npx sidder forget old-name --config ./sidder.config.mts`;
+
+const INIT_HELP = `sidder init — write a starting configuration
+
+Usage
+  npx sidder init [--force]
+
+Options
+      --force           overwrite the config sidder would resolve
+  -h, --help
+
+The generated .mts files are explicit ES modules, so they do not depend on the nearest
+package.json having "type": "module".`;
+
+const COMMAND_HELP = {
+  run: RUN_HELP,
+  status: STATUS_HELP,
+  forget: FORGET_HELP,
+  init: INIT_HELP,
+} as const;
+
+type Command = keyof typeof COMMAND_HELP;
+type OptionName = keyof typeof OPTIONS;
 
 const OPTIONS = {
   config: { type: 'string', short: 'c' },
   env: { type: 'string', short: 'e' },
   only: { type: 'string' },
-  'dry-run': { type: 'boolean', default: false },
-  json: { type: 'boolean', default: false },
-  trace: { type: 'boolean', default: false },
-  force: { type: 'boolean', default: false },
-  help: { type: 'boolean', short: 'h', default: false },
-  version: { type: 'boolean', short: 'v', default: false },
+  'dry-run': { type: 'boolean' },
+  json: { type: 'boolean' },
+  trace: { type: 'boolean' },
+  force: { type: 'boolean' },
+  help: { type: 'boolean', short: 'h' },
+  version: { type: 'boolean', short: 'v' },
 } as const;
 
+const ALLOWED_OPTIONS: Record<Command, ReadonlySet<OptionName>> = {
+  run: new Set(['config', 'env', 'only', 'dry-run', 'force', 'trace', 'help', 'version']),
+  status: new Set(['config', 'env', 'only', 'json', 'trace', 'help', 'version']),
+  forget: new Set(['config', 'trace', 'help', 'version']),
+  init: new Set(['force', 'trace', 'help', 'version']),
+};
+
 async function main(argv: string[]): Promise<number> {
-  const { values, positionals } = parseArgs({
-    args: argv,
-    options: OPTIONS,
-    allowPositionals: true,
-  });
+  const { values, positionals } = parse(argv);
 
   if (values.version) {
     console.log(VERSION);
@@ -82,24 +157,46 @@ async function main(argv: string[]): Promise<number> {
   }
 
   const command = positionals[0];
-  if (values.help || command === undefined) {
-    console.log(HELP);
+  if (command === 'help') {
+    validateRootOptions(values);
+    const target = positionals[1];
+    if (positionals.length > 2) {
+      throw usage('help accepts at most one command name', 'npx sidder help run');
+    }
+    if (target === undefined) {
+      console.log(HELP);
+      return 0;
+    }
+    if (!isCommand(target)) throw unknownCommand(target);
+    console.log(COMMAND_HELP[target]);
     return 0;
   }
 
+  if (command === undefined) {
+    validateRootOptions(values);
+    console.log(HELP);
+    return 0;
+  }
+  if (!isCommand(command)) throw unknownCommand(command);
+
+  validateOptions(command, values);
+
+  if (values.help) {
+    console.log(COMMAND_HELP[command]);
+    return 0;
+  }
+
+  validatePositionals(command, positionals);
+
   switch (command) {
     case 'init':
-      return commandInit(values.force);
+      return commandInit(values.force ?? false);
     case 'run':
       return await commandRun(values);
     case 'status':
       return await commandStatus(values);
     case 'forget':
       return await commandForget(values, positionals.slice(1).flatMap(splitNames));
-    default:
-      console.error(`${style.red('error')} unknown command "${command}"\n`);
-      console.error(HELP);
-      return 1;
   }
 }
 
@@ -147,15 +244,20 @@ async function open(
 }
 
 async function commandRun(
-  values: Values & { 'dry-run': boolean; force: boolean; trace: boolean },
+  values: Values & {
+    'dry-run'?: boolean | undefined;
+    force?: boolean | undefined;
+    trace?: boolean | undefined;
+  },
 ): Promise<number> {
-  const dryRun = values['dry-run'];
+  const dryRun = values['dry-run'] ?? false;
+  const force = values.force ?? false;
   const only = parseOnly(values.only);
   const {
     config,
     baseDir,
     resolved: { env, sources },
-  } = await open(values, { dryRun, force: values.force });
+  } = await open(values, { dryRun, force });
 
   let pad = (name: string) => name;
   const write = (text: string) => {
@@ -222,7 +324,7 @@ async function commandRun(
     const result = await runSeeds(config, {
       env: values.env,
       only,
-      force: values.force,
+      force,
       dryRun,
       baseDir,
       onEvent,
@@ -275,7 +377,7 @@ async function commandRun(
       // `constraint` and `code` — are on the seed's own error, not on the wrapper.
       formatSeedFailure(error.seed, error.cause, {
         rolledBack: error.rolledBack,
-        trace: values.trace,
+        trace: values.trace ?? false,
       }),
     );
     return 1;
@@ -284,9 +386,10 @@ async function commandRun(
   }
 }
 
-async function commandStatus(values: Values & { json: boolean }): Promise<number> {
+async function commandStatus(values: Values & { json?: boolean | undefined }): Promise<number> {
+  const json = values.json ?? false;
   const only = parseOnly(values.only);
-  const { config, baseDir } = await open(values, { json: values.json });
+  const { config, baseDir } = await open(values, { json });
 
   try {
     const inspection = await inspect(config, {
@@ -295,9 +398,7 @@ async function commandStatus(values: Values & { json: boolean }): Promise<number
       ...(only ? { only } : {}),
     });
 
-    console.log(
-      values.json ? JSON.stringify(inspection, null, 2) : formatStatus(inspection, { only }),
-    );
+    console.log(json ? JSON.stringify(inspection, null, 2) : formatStatus(inspection, { only }));
     return 0;
   } finally {
     await config.adapter.close?.();
@@ -314,7 +415,7 @@ async function commandStatus(values: Values & { json: boolean }): Promise<number
 async function commandForget(values: Values, names: string[]): Promise<number> {
   if (names.length === 0) {
     console.error(`${style.red('error')} forget needs at least one seed name`);
-    console.error(style.dim('  sidder forget demo — `sidder status` lists the names'));
+    console.error(style.dim('  npx sidder forget demo — `npx sidder status` lists the names'));
     return 1;
   }
 
@@ -343,6 +444,65 @@ function splitNames(value: string): string[] {
 
 function parseOnly(value: string | undefined): string[] | undefined {
   return value === undefined ? undefined : splitNames(value);
+}
+
+function parse(argv: string[]) {
+  try {
+    return parseArgs({
+      args: argv,
+      options: OPTIONS,
+      allowPositionals: true,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw usage(message, 'npx sidder --help');
+  }
+}
+
+function isCommand(value: string): value is Command {
+  return value in COMMAND_HELP;
+}
+
+function validateOptions(command: Command, values: Record<string, unknown>): void {
+  const allowed = ALLOWED_OPTIONS[command];
+  for (const [name, value] of Object.entries(values)) {
+    if (value !== undefined && !allowed.has(name as OptionName)) {
+      throw usage(
+        `--${name} is not valid with \`sidder ${command}\``,
+        `npx sidder ${command} --help`,
+      );
+    }
+  }
+}
+
+function validateRootOptions(values: Record<string, unknown>): void {
+  const allowed = new Set<OptionName>(['trace', 'help', 'version']);
+  for (const [name, value] of Object.entries(values)) {
+    if (value !== undefined && !allowed.has(name as OptionName)) {
+      throw usage(`--${name} needs a command`, 'npx sidder --help');
+    }
+  }
+}
+
+function validatePositionals(command: Command, positionals: string[]): void {
+  if (command === 'forget') return;
+  if (positionals.length > 1) {
+    throw usage(
+      `\`sidder ${command}\` does not accept positional arguments`,
+      `npx sidder ${command} --help`,
+    );
+  }
+}
+
+function usage(message: string, example: string): UsageError {
+  return new UsageError(message, `Run \`${example}\` for the supported usage.`);
+}
+
+function unknownCommand(command: string): UsageError {
+  return new UsageError(
+    `Unknown command "${command}"`,
+    'Run `npx sidder --help` to see the supported commands.',
+  );
 }
 
 try {
