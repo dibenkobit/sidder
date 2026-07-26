@@ -163,11 +163,25 @@ export type SkipReason =
 
 export type SeedOutcome =
   | { name: string; status: 'applied'; durationMs: number }
+  /**
+   * A dry run's verdict: selected, ordered, and not executed.
+   *
+   * It is a status of its own rather than `applied` with a note, because the obvious
+   * question a caller asks an outcome — `status === 'applied'` — has to come back false
+   * for a seed that never touched the database. It carries no `durationMs`: nothing was
+   * timed, and a `0` there would be the same lie in a smaller font.
+   *
+   * One result never mixes this with `applied`; `dryRun` is decided for the whole run.
+   */
+  | { name: string; status: 'would-run' }
   | { name: string; status: 'skipped'; reason: SkipReason }
   /**
    * `rolledBack` is false only for seeds that set `transaction: false`, whose partial
    * writes are still in the database. Reporting a failure without saying which of the
    * two happened would leave you guessing about the state of your database.
+   *
+   * `runSeeds` throws instead of returning here, so this variant reaches a caller on
+   * `SeedFailedError.result` — as the last outcome, after everything that committed.
    */
   | { name: string; status: 'failed'; error: unknown; rolledBack: boolean };
 
@@ -176,6 +190,8 @@ export type RunEvent =
   | { type: 'plan'; env: string; order: string[] }
   | { type: 'start'; name: string }
   | { type: 'applied'; name: string; durationMs: number }
+  /** Emitted in place of `applied` for every seed a dry run decided to run. */
+  | { type: 'would-run'; name: string }
   | { type: 'skipped'; name: string; reason: SkipReason }
   | { type: 'failed'; name: string; error: unknown; rolledBack: boolean };
 

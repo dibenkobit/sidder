@@ -19,7 +19,7 @@ export type { Inspection, SeedStatus } from './inspect.ts';
 export { inspect } from './inspect.ts';
 export { ensureJournal, forgetApplied, readJournal } from './journal.ts';
 export type { Decision } from './plan.ts';
-export { runSeeds } from './run.ts';
+export { runSeeds, SeedFailedError } from './run.ts';
 
 export type {
   Adapter,

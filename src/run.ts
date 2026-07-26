@@ -22,15 +22,56 @@ import type {
 } from './types.ts';
 
 /**
+ * A seed threw. Everything sowme knows about the run at that moment, on the throw.
+ *
+ * `runSeeds` throws rather than returning a result with a `failed` outcome in it, and
+ * that is not negotiable: a deploy script that ignores the return value must not carry
+ * on as if the seeds are in. But the outcomes collected before the throw answer "what
+ * is committed", which is the difference between resuming and starting over — so they
+ * ride along instead of being dropped on the floor.
+ *
+ * Deliberately **not** a `SowmeError`. Everything in `errors.ts` is a way sowme refuses
+ * to run and carries a `hint` saying what to do about it; this is a report wrapped
+ * around someone else's failure, and the remedy is in a seed sowme has no opinion
+ * about. Inventing a hint here would be sowme guessing out loud.
+ *
+ * The original error is on `cause`, the standard property, because that is where every
+ * consumer already looks — including the CLI, which reads a Postgres driver's `detail`
+ * and `constraint` off it to say which row broke the constraint.
+ */
+export class SeedFailedError extends Error {
+  /** The seed that threw. */
+  readonly seed: string;
+  /**
+   * False only for a seed that set `transaction: false`, whose writes are still in the
+   * database. Which of the two happened decides what you do next.
+   */
+  readonly rolledBack: boolean;
+  /**
+   * The run up to and including the failure: every `applied` outcome in it is committed
+   * and journalled, and the last outcome is the `failed` one.
+   */
+  readonly result: RunResult;
+
+  constructor(seed: string, cause: unknown, context: { rolledBack: boolean; result: RunResult }) {
+    super(`Seed "${seed}" failed: ${messageOf(cause)}`, { cause });
+    this.name = 'SeedFailedError';
+    this.seed = seed;
+    this.rolledBack = context.rolledBack;
+    this.result = context.result;
+  }
+}
+
+/**
  * Runs your seeds. One process, one connection, order worked out from `dependsOn`.
  *
  * This is the whole tool; the CLI is a formatter wrapped around this call. Tests are
  * the reason it is exported: persona two wants "run these three seeds now and forget
  * it happened", which is `{ only: [...], journal: false }` and no command line at all.
  *
- * Throws on the first seed that fails, after emitting a `failed` event. The seeds that
- * already succeeded stay committed and journalled, so the next run picks up where this
- * one stopped.
+ * Throws {@link SeedFailedError} on the first seed that fails, after emitting a `failed`
+ * event. The seeds that already succeeded stay committed and journalled — the throw says
+ * which ones — so the next run picks up where this one stopped.
  *
  * Two of these at once — two replicas in a deploy, two jobs in one pipeline — do not
  * apply anything twice. The plan each of them prints is a forecast made from the journal
@@ -78,10 +119,10 @@ export async function runSeeds<TDb>(
     }
 
     if (options.dryRun) {
-      // Decided, not executed. Reported as applied with no duration so the plan reads
-      // the same shape as a real run would.
-      outcomes.push({ name: seed.name, status: 'applied', durationMs: 0 });
-      emit({ type: 'applied', name: seed.name, durationMs: 0 });
+      // Decided, not executed — and said in those words, because a caller filtering for
+      // `applied` is asking what reached the database.
+      outcomes.push({ name: seed.name, status: 'would-run' });
+      emit({ type: 'would-run', name: seed.name });
       continue;
     }
 
@@ -104,7 +145,7 @@ export async function runSeeds<TDb>(
       const rolledBack = seed.transaction !== false;
       outcomes.push({ name: seed.name, status: 'failed', error, rolledBack });
       emit({ type: 'failed', name: seed.name, error, rolledBack });
-      throw error;
+      throw new SeedFailedError(seed.name, error, { rolledBack, result: { env, outcomes } });
     }
 
     if (executed.action === 'skip') {
@@ -218,4 +259,14 @@ async function executeSeed<TDb>(
     await record(scope);
     return { action: 'run' };
   });
+}
+
+/**
+ * The cause's own message, to repeat inside the wrapper's.
+ *
+ * A test suite asserting on the message a seed threw keeps matching once the throw is
+ * wrapped, and an uncaught failure still reads as itself rather than as a sowme noun.
+ */
+function messageOf(cause: unknown): string {
+  return cause instanceof Error ? cause.message : String(cause);
 }
