@@ -4,9 +4,10 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 import { type DrizzleLike, drizzleAdapter } from '../src/adapters/drizzle.ts';
 import { type PgPool, type PgQueryable, pgAdapter } from '../src/adapters/pg.ts';
-import { forgetApplied } from '../src/journal.ts';
+import { JournalTableMismatchError } from '../src/errors.ts';
+import { ensureJournal, forgetApplied, readJournal } from '../src/journal.ts';
 import { runSeeds } from '../src/run.ts';
-import type { Config, Seed } from '../src/types.ts';
+import type { Config, Scope, Seed } from '../src/types.ts';
 
 /**
  * The integration tests. `bun run db:up && bun run test:pg`.
@@ -202,6 +203,103 @@ describeIf('against a real Postgres', () => {
 
       expect(await countWidgets()).toBe(2);
       expect(await journalNames()).toEqual(['widgets']);
+    });
+  });
+
+  /**
+   * `journalTable` pointed at a table sowme did not create.
+   *
+   * Only a real database can prove this one: it turns on `create table if not exists`
+   * finding somebody else's table and saying nothing, and on what Postgres does with a
+   * name that may or may not carry a schema.
+   */
+  describe('a journal table that is not a journal', () => {
+    const adapter = pgAdapter(pool as unknown as PgPool);
+    const noop: Seed<PgQueryable>[] = [{ name: 'noop', run: async () => {} }];
+
+    const failureOf = (promise: Promise<unknown>): Promise<unknown> =>
+      promise.then(
+        () => null,
+        (error: unknown) => error,
+      );
+
+    test('a run against an application table says so, and says which setting to change', async () => {
+      // The collision as it actually happens: `journalTable` names a table that is
+      // already there and is somebody else's.
+      await pool.query(`create table ${JOURNAL} (id serial primary key, label text not null)`);
+
+      const error = await failureOf(
+        runSeeds({ adapter, seeds: noop, env: 'test', journalTable: JOURNAL }),
+      );
+
+      expect(error).toBeInstanceOf(JournalTableMismatchError);
+      const { message, hint } = error as JournalTableMismatchError;
+      expect(message).toBe(`Table "${JOURNAL}" exists but is not sowme's journal`);
+      expect(hint).toContain('It has id, label.');
+      expect(hint).toContain('A journal has name, applied_at, environment, duration_ms.');
+      expect(hint).toContain('`journalTable`');
+    });
+
+    test('a schema-qualified name is diagnosed too', async () => {
+      // `assertSafeTableName` allows `public.sowme_journal`, so the introspection has to
+      // survive the qualified form rather than assuming a bare one.
+      await pool.query(`create table ${JOURNAL} (id serial primary key)`);
+
+      const error = await failureOf(
+        runSeeds({ adapter, seeds: noop, env: 'test', journalTable: `public.${JOURNAL}` }),
+      );
+
+      expect(error).toBeInstanceOf(JournalTableMismatchError);
+      expect((error as JournalTableMismatchError).message).toContain(`public.${JOURNAL}`);
+    });
+
+    test('an empty journal of the right shape is read, not diagnosed', async () => {
+      await ensureJournal(adapter.root, JOURNAL);
+
+      expect((await readJournal(adapter.root, JOURNAL)).size).toBe(0);
+    });
+
+    test('a journal with a column of your own added to it still runs', async () => {
+      await ensureJournal(adapter.root, JOURNAL);
+      await pool.query(`alter table ${JOURNAL} add column note text`);
+
+      const result = await runSeeds({ adapter, seeds: noop, env: 'test', journalTable: JOURNAL });
+
+      expect(result.outcomes[0]).toMatchObject({ name: 'noop', status: 'applied' });
+    });
+
+    test('describes the table the read reached, which search_path may have chosen', async () => {
+      // A bare name is resolved by Postgres, and not necessarily to `public`. So the
+      // diagnosis is resolved the same way — `to_regclass` on the name as configured.
+      // Here the name resolves to the wrong-shaped table in `sowme_alt` while a perfectly
+      // good journal of the same name sits in `public`: an introspection that assumed
+      // `public` would find four valid columns and report nothing at all.
+      const client = await pool.connect();
+
+      try {
+        await client.query('create schema sowme_alt');
+        await client.query(`create table sowme_alt.${JOURNAL} (id serial primary key)`);
+        await ensureJournal(adapter.root, `public.${JOURNAL}`);
+        await client.query('set search_path to sowme_alt, public');
+
+        // The same scope the adapter builds, over one connection instead of the pool, so
+        // that `set search_path` applies to the statements under test.
+        const queryable = client as unknown as PgQueryable;
+        const scope: Scope<PgQueryable> = {
+          db: queryable,
+          execute: async (sql, params) => (await queryable.query(sql, params)).rows,
+        };
+
+        const error = await failureOf(readJournal(scope, JOURNAL));
+
+        expect(error).toBeInstanceOf(JournalTableMismatchError);
+        expect((error as JournalTableMismatchError).hint).toContain('It has id.');
+      } finally {
+        // The connection goes back to the pool, so the search_path has to go back with it.
+        await client.query('reset search_path');
+        await client.query('drop schema sowme_alt cascade');
+        client.release();
+      }
     });
   });
 

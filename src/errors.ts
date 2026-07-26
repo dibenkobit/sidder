@@ -118,6 +118,35 @@ export class UnsafeTableNameError extends SowmeError {
   }
 }
 
+/**
+ * The name in `journalTable` belongs to a table that is not a journal.
+ *
+ * `create table if not exists` is perfectly happy to find somebody else's table sitting
+ * under the name, so a typo or a collision with an application table gets no complaint
+ * until the first read, which fails as `column "applied_at" does not exist` — naming
+ * neither the table nor the setting that chose it. This says both.
+ */
+export class JournalTableMismatchError extends SowmeError {
+  constructor(table: string, expected: readonly string[], found: readonly string[]) {
+    const missing = expected.filter((column) => !found.includes(column));
+
+    super(
+      `Table "${table}" exists but is not sowme's journal`,
+      [
+        `It has ${found.join(', ')}. A journal has ${expected.join(', ')}.`,
+        // Spelled out only when the two lists overlap, which is a journal whose columns
+        // have drifted rather than somebody else's table. When nothing matches, the two
+        // lists above already say so and repeating them adds a line and no fact.
+        ...(missing.length < expected.length ? [`Missing: ${missing.join(', ')}.`] : []),
+        `\`journalTable\` is what chose this name. Point it at a name of sowme's own — the`,
+        `default is \`sowme_journal\`, and sowme creates the table itself, so the name only`,
+        `has to be free.`,
+      ].join('\n'),
+    );
+    this.name = 'JournalTableMismatchError';
+  }
+}
+
 const RUNTIME_CHOICES = [
   'sowme runs your seeds in its own process, so whatever launched sowme has to be able to import .ts.',
   'Pick one:',

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { UnsafeTableNameError } from '../src/errors.ts';
+import { JournalTableMismatchError, UnsafeTableNameError } from '../src/errors.ts';
 import {
   assertSafeTableName,
   ensureJournal,
@@ -7,6 +7,7 @@ import {
   readJournal,
   recordApplied,
 } from '../src/journal.ts';
+import type { Scope } from '../src/types.ts';
 import { createMemoryAdapter } from './helpers/memory-adapter.ts';
 
 describe('assertSafeTableName', () => {
@@ -74,6 +75,123 @@ describe('journal round trip', () => {
 
     expect(journal.size).toBe(1);
     expect(journal.get('roles')?.environment).toBe('production');
+  });
+});
+
+/**
+ * `journalTable` can be pointed at a table that is not a journal, and
+ * `create table if not exists` will not say a word about it. The first sign is the read
+ * below failing with the driver's `column "applied_at" does not exist`, which names
+ * neither the table nor the setting that picked it.
+ *
+ * These drive a scope directly rather than through the memory adapter, because what is
+ * being tested is what `readJournal` does with a read that failed — and the memory
+ * adapter's reads cannot fail. The real thing is in postgres.test.ts.
+ */
+describe('a journal table that is not a journal', () => {
+  const JOURNAL_COLUMNS = ['name', 'applied_at', 'environment', 'duration_ms'];
+
+  /** A scope whose journal read fails and whose catalogue query answers with `columns`. */
+  function scopeWhoseReadFails(columns: string[] | Error) {
+    const readFailure = new Error('column "applied_at" does not exist');
+    const calls: { sql: string; params: readonly unknown[] }[] = [];
+
+    const scope: Scope = {
+      db: {},
+      execute: async (sql, params = []) => {
+        calls.push({ sql, params });
+        if (!sql.includes('pg_attribute')) throw readFailure;
+        if (columns instanceof Error) throw columns;
+        return columns.map((attname) => ({ attname }));
+      },
+    };
+
+    return { scope, calls, readFailure };
+  }
+
+  async function readFailure(scope: Scope, table = 'sowme_journal'): Promise<unknown> {
+    try {
+      await readJournal(scope, table);
+    } catch (error) {
+      return error;
+    }
+    throw new Error('expected the read to fail');
+  }
+
+  test('says which table, which columns, and which setting chose the name', async () => {
+    const { scope } = scopeWhoseReadFails(['id', 'label']);
+
+    const error = await readFailure(scope, 'widgets');
+
+    expect(error).toBeInstanceOf(JournalTableMismatchError);
+    const { message, hint } = error as JournalTableMismatchError;
+    expect(message).toBe(`Table "widgets" exists but is not sowme's journal`);
+    expect(hint).toContain('It has id, label.');
+    expect(hint).toContain('A journal has name, applied_at, environment, duration_ms.');
+    expect(hint).toContain('`journalTable`');
+  });
+
+  test('names the missing columns when only some of them are missing', async () => {
+    // A journal of sowme's own whose columns have drifted — an old one, or an edited one.
+    const { scope } = scopeWhoseReadFails(['name', 'applied_at']);
+
+    const { hint } = (await readFailure(scope)) as JournalTableMismatchError;
+
+    expect(hint).toContain('Missing: environment, duration_ms.');
+  });
+
+  test("leaves the driver's error alone when the columns are all there", async () => {
+    // Reading a journal can fail for reasons that are not its shape — a permission, a
+    // connection. Replacing those with a guess about the shape would be a lie.
+    const { scope, readFailure: original } = scopeWhoseReadFails(JOURNAL_COLUMNS);
+
+    expect(await readFailure(scope)).toBe(original);
+  });
+
+  test('tolerates extra columns rather than refusing to run', async () => {
+    const { scope, readFailure: original } = scopeWhoseReadFails([...JOURNAL_COLUMNS, 'note']);
+
+    expect(await readFailure(scope)).toBe(original);
+  });
+
+  test("leaves the driver's error alone when there is no table to look at", async () => {
+    // `to_regclass` on a name that resolves to nothing returns null, so the query finds
+    // no columns. Whatever went wrong, it was not this.
+    const { scope, readFailure: original } = scopeWhoseReadFails([]);
+
+    expect(await readFailure(scope)).toBe(original);
+  });
+
+  test('does not let a failed introspection mask the failure it was explaining', async () => {
+    // Not every adapter is Postgres, and a connection that has just dropped refuses the
+    // second query as readily as the first.
+    const { scope, readFailure: original } = scopeWhoseReadFails(
+      new Error('relation "pg_attribute" does not exist'),
+    );
+
+    expect(await readFailure(scope)).toBe(original);
+  });
+
+  test('hands the name to Postgres to resolve, schema and all', async () => {
+    // Bound as a parameter and resolved by `to_regclass`, so a bare name goes through
+    // `search_path` exactly as the read above did, and a qualified one is not taken apart
+    // here. Splitting it ourselves would risk describing a different table than the one
+    // that failed.
+    const { scope, calls } = scopeWhoseReadFails(['id']);
+
+    await readFailure(scope, 'public.sowme_journal');
+
+    expect(calls.map((call) => call.params)).toEqual([[], ['public.sowme_journal']]);
+  });
+
+  test('costs nothing when the journal is a journal, empty or not', async () => {
+    // The check is on the failure path. A brand new journal with no rows in it is the
+    // happy path, and the happy path must not pay for this.
+    const { adapter, statements } = createMemoryAdapter();
+    await ensureJournal(adapter.root, 'sowme_journal');
+
+    expect((await readJournal(adapter.root, 'sowme_journal')).size).toBe(0);
+    expect(statements.some((statement) => statement.includes('pg_attribute'))).toBe(false);
   });
 });
 
