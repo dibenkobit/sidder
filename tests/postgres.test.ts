@@ -1,6 +1,7 @@
 import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
 import { sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
+import { integer, pgTable, serial, text } from 'drizzle-orm/pg-core';
 import { Pool } from 'pg';
 import { type DrizzleLike, drizzleAdapter } from '../src/adapters/drizzle.ts';
 import { type PgPool, type PgQueryable, pgAdapter } from '../src/adapters/pg.ts';
@@ -13,10 +14,11 @@ import type { Config, RunEvent, Scope, Seed } from '../src/types.ts';
  * The integration tests. `bun run db:up && bun run test:pg`.
  *
  * Everything else in this suite runs against an in-memory adapter, which is fast and
- * proves the runner's decisions. It cannot prove the three things only a real database
+ * proves the runner's decisions. It cannot prove the four things only a real database
  * can: that the journal statements are valid SQL on Postgres, that a failing seed really
- * does take its journal row down with it, and that two runs at once apply each seed once.
- * That is what is here.
+ * does take its journal row down with it, that two runs at once apply each seed once, and
+ * that an ORM's own query builders work on the transaction object its adapter hands a
+ * seed. That is what is here.
  *
  * runSeeds never calls `adapter.close()` — that is the CLI's job — so these tests can
  * share one pool across every case and close it once at the end.
@@ -458,12 +460,73 @@ describeIf('against a real Postgres', () => {
     });
   });
 
+  /**
+   * The adapter as the consumer migrating onto it uses it: writing with query builders,
+   * never with `sql`.
+   *
+   * Those builders reach a seed through a cast — `drizzleAdapter` hands `fn` a
+   * `scopeFor(tx as TDb)`, because Drizzle's transaction object carries the builders but
+   * is not literally the database. Nothing about that is visible from a raw-SQL test,
+   * which needs only `execute`. So the block below writes the way a consumer writes.
+   */
   describe('drizzleAdapter', () => {
-    const adapter = drizzleAdapter(drizzle(pool) as unknown as DrizzleLike);
+    const db = drizzle(pool);
+    type Db = typeof db;
+
+    /**
+     * What a consumer writes. No cast: `TDb` infers as the database type itself, so
+     * `ctx.db` arrives with every builder on it. Typing the config `Config<DrizzleLike>`
+     * instead — as the two raw-SQL tests below do — erases them, and a seed typed that way
+     * cannot call `.insert()` at all.
+     */
+    const adapter = drizzleAdapter(db);
+
+    /**
+     * The same database seen through only the two members the adapter is documented to
+     * need. The annotation is the assertion: a real `NodePgDatabase` satisfies
+     * `DrizzleLike` structurally and needs no cast to do it, so this really is what a
+     * driver this suite never loads would get.
+     */
+    const narrowed: DrizzleLike = db;
+    const narrowedAdapter = drizzleAdapter(narrowed);
+
+    const widgets = pgTable('widgets', {
+      id: serial('id').primaryKey(),
+      label: text('label').notNull(),
+    });
+
+    // `widget_tags` belongs to this block alone, so it is created here rather than in the
+    // shared fixture. No foreign key: the outer `beforeEach` drops `widgets` first, and a
+    // reference would make that fail. The join in the test is what checks the ids anyway.
+    const widgetTags = pgTable('widget_tags', {
+      id: serial('id').primaryKey(),
+      widgetId: integer('widget_id').notNull(),
+      tag: text('tag').notNull(),
+    });
+
+    beforeEach(async () => {
+      await pool.query('drop table if exists widget_tags');
+      await pool.query(
+        'create table widget_tags (id serial primary key, widget_id integer not null, tag text not null)',
+      );
+    });
+
+    afterAll(async () => {
+      await pool.query('drop table if exists widget_tags');
+    });
+
+    // Read back through the pool rather than through a builder: the assertion has to come
+    // from somewhere other than the thing under test.
+    async function widgetLabels(): Promise<string[]> {
+      const { rows } = await pool.query<{ label: string }>(
+        'select label from widgets order by label',
+      );
+      return rows.map((row) => row.label);
+    }
 
     test('drives the same journal through Drizzle', async () => {
       const config: Config<DrizzleLike> = {
-        adapter,
+        adapter: narrowedAdapter,
         env: 'test',
         journalTable: JOURNAL,
         seeds: [
@@ -484,7 +547,7 @@ describeIf('against a real Postgres', () => {
 
     test('rolls back through Drizzle too', async () => {
       const config: Config<DrizzleLike> = {
-        adapter,
+        adapter: narrowedAdapter,
         env: 'test',
         journalTable: JOURNAL,
         seeds: [
@@ -502,6 +565,146 @@ describeIf('against a real Postgres', () => {
 
       expect(await countWidgets()).toBe(0);
       expect(await journalNames()).toEqual([]);
+    });
+
+    test('a seed writing with query builders commits, and is journalled', async () => {
+      const config: Config<Db> = {
+        adapter,
+        env: 'test',
+        journalTable: JOURNAL,
+        seeds: [
+          {
+            name: 'widgets',
+            run: async ({ db }) => {
+              await db.insert(widgets).values([{ label: 'built' }, { label: 'by builder' }]);
+            },
+          },
+        ],
+      };
+
+      await runSeeds(config);
+
+      // The labels, not the count: a builder that inserted defaults would pass a count.
+      expect(await widgetLabels()).toEqual(['built', 'by builder']);
+      expect(await journalNames()).toEqual(['widgets']);
+    });
+
+    test('a builder seed that throws leaves neither its rows nor its journal entry', async () => {
+      const config: Config<Db> = {
+        adapter,
+        env: 'test',
+        journalTable: JOURNAL,
+        seeds: [
+          {
+            name: 'widgets',
+            run: async ({ db }) => {
+              await db.insert(widgets).values({ label: 'rolled back' });
+              // Deliberately not a constraint violation, unlike the raw-SQL test above.
+              // Postgres has aborted nothing here, so the row disappears for exactly one
+              // reason: what the cast handed the seed was the transaction, not the
+              // database. Had it been the database, this row would still be there.
+              throw new Error('half way through');
+            },
+          },
+        ],
+      };
+
+      await expect(runSeeds(config)).rejects.toThrow('half way through');
+
+      expect(await countWidgets()).toBe(0);
+      expect(await journalNames()).toEqual([]);
+    });
+
+    test('a dependent seed reads back with a builder what the seed before it wrote', async () => {
+      const config: Config<Db> = {
+        adapter,
+        env: 'test',
+        journalTable: JOURNAL,
+        seeds: [
+          {
+            name: 'widgets',
+            run: async ({ db }) => {
+              await db.insert(widgets).values([{ label: 'left' }, { label: 'right' }]);
+            },
+          },
+          {
+            name: 'tags',
+            dependsOn: ['widgets'],
+            run: async ({ db }) => {
+              // Each seed runs in its own transaction, so a select is the only way the
+              // generated ids reach here. That is what `dependsOn` is for, and it has to
+              // hold through the cast in both directions: the read sees another
+              // transaction's committed rows, the write goes into this one.
+              const rows = await db.select().from(widgets).orderBy(widgets.label);
+              expect(rows).toHaveLength(2);
+
+              await db
+                .insert(widgetTags)
+                .values(rows.map((row) => ({ widgetId: row.id, tag: `${row.label}-tag` })));
+            },
+          },
+        ],
+      };
+
+      await runSeeds(config);
+
+      // Joined rather than read straight out: two tag rows carrying the wrong ids would
+      // still be two tag rows.
+      const { rows } = await pool.query<{ label: string; tag: string }>(
+        'select w.label, t.tag from widget_tags t join widgets w on w.id = t.widget_id order by t.tag',
+      );
+      expect(rows).toEqual([
+        { label: 'left', tag: 'left-tag' },
+        { label: 'right', tag: 'right-tag' },
+      ]);
+      expect(await journalNames()).toEqual(['tags', 'widgets']);
+    });
+
+    test('$client is absent inside a transaction, though the types promise a Pool', async () => {
+      /**
+       * The one place the cast is visible to a seed, pinned so that a Drizzle release
+       * which starts forwarding the handle shows up here rather than in production.
+       *
+       * `drizzle()` assigns `$client` onto the database object it returns. The transaction
+       * object is a different object — `NodePgTransaction` — and never gets one, so a
+       * transactional seed reading `db.$client` gets `undefined` and any call through it
+       * throws a TypeError. The type says `Pool`, because `tx as TDb` is the same cast
+       * that makes the builders typecheck; it cannot promise one without the other.
+       *
+       * A seed that genuinely needs the driver handle wants `transaction: false`, which
+       * hands it `adapter.root.db` — the database, so the real pool.
+       */
+      let insideTransaction: unknown = 'never ran';
+      let insideHasTheKey: unknown = 'never ran';
+      let outsideTransaction: unknown = 'never ran';
+
+      const config: Config<Db> = {
+        adapter,
+        env: 'test',
+        journalTable: JOURNAL,
+        seeds: [
+          {
+            name: 'inside',
+            run: async ({ db }) => {
+              insideTransaction = db.$client;
+              insideHasTheKey = '$client' in db;
+            },
+          },
+          {
+            name: 'outside',
+            transaction: false,
+            run: async ({ db }) => {
+              outsideTransaction = db.$client;
+            },
+          },
+        ],
+      };
+
+      await runSeeds(config);
+
+      expect(insideTransaction).toBeUndefined();
+      expect(insideHasTheKey).toBe(false);
+      expect(outsideTransaction).toBe(pool);
     });
   });
 });
