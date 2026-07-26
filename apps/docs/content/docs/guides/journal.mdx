@@ -1,0 +1,48 @@
+---
+title: Journal and recovery
+description: One readable Postgres table, written in the same transaction as the seed.
+---
+
+sidder creates one table:
+
+```sql
+create table sidder_journal (
+  name        text        primary key,
+  applied_at  timestamptz not null default now(),
+  environment text        not null,
+  duration_ms integer     not null
+);
+```
+
+The default name is `sidder_journal`; change it with `journalTable` in the config.
+
+## Why it lives in Postgres
+
+The journal is database state because its row must be written through the same
+transactional scope as the seed. A crash rolls back the seed writes and the record
+together, so the next run can safely try again.
+
+A file on disk, or a write through another pooled connection, could claim a seed ran when
+its changes rolled back — or forget it ran after the changes committed.
+
+## Run a seed again
+
+Deleting a row makes that seed eligible again:
+
+```bash
+sidder forget demo
+```
+
+`forget` operates on journal names, not the currently discovered seed list. That is why it
+can remove an orphan left behind after a seed file was renamed or deleted.
+
+You can perform the same operation directly in psql. Nothing else in sidder depends on
+the row existing.
+
+## Failed seeds
+
+With the default transaction, failure output states that writes were rolled back. The
+journal row is absent and the next run starts that seed again.
+
+With `transaction: false`, failure output says that writes remain. Repair or remove those
+partial writes before deciding whether to repeat the seed.

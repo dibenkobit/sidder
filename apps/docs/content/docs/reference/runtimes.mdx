@@ -1,0 +1,38 @@
+---
+title: Runtimes
+description: The runtime launching sidder is the runtime that loads your TypeScript seed modules.
+---
+
+sidder ships no TypeScript loader and has zero runtime dependencies.
+
+| Runtime | TypeScript seed files | `tsconfig` paths |
+| --- | --- | --- |
+| `bunx --bun sidder run` | native | yes |
+| Node 22.18 or newer | native type stripping | no |
+| `node --import tsx …/sidder run` | through `tsx` | yes |
+| Node older than 22.18, without a loader | unsupported | — |
+
+## Node
+
+Node's native type stripping is enough for erasable TypeScript syntax. It does not read
+`tsconfig` path aliases and does not transform runtime TypeScript features such as enums
+that require code generation.
+
+Use explicit relative imports with file extensions, or launch through the TypeScript
+loader your project already uses.
+
+## Bun
+
+Use `--bun` so Bun runs the package executable instead of delegating to Node:
+
+```bash
+bunx --bun sidder run
+```
+
+Bun loads TypeScript and `tsconfig` paths natively.
+
+## Loader failures
+
+sidder distinguishes a runtime that cannot load `.ts` from a syntax error inside your
+module. Only the runtime-specific Node error codes produce the upgrade-or-loader hint; a
+missing quote reports the actual file and parser location instead.

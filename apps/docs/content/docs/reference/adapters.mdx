@@ -1,0 +1,59 @@
+---
+title: Adapters
+description: Use node-postgres, Drizzle, or implement the complete two-member surface.
+---
+
+## node-postgres
+
+```ts title="sidder.config.mts"
+import { defineConfig } from 'sidder';
+import { pgAdapter } from 'sidder/adapters/pg';
+import { pool } from './src/db/index.mts';
+
+export default defineConfig({
+  adapter: pgAdapter(pool),
+});
+```
+
+The adapter accepts a pool-shaped value with `query`, `connect` and `end`. Inside a
+transaction, the `db` handed to a seed is the checked-out client.
+
+## Drizzle
+
+```ts title="sidder.config.mts"
+import { defineConfig } from 'sidder';
+import { drizzleAdapter } from 'sidder/adapters/drizzle';
+import { db } from './src/db/index.mts';
+
+export default defineConfig({
+  adapter: drizzleAdapter(db),
+});
+```
+
+Inside a transactional seed, `db` is Drizzle's transaction object. It carries the same
+query builders; nested `db.transaction()` calls continue to work as savepoints.
+
+## Custom adapter
+
+The complete surface is:
+
+```ts
+interface Adapter<TDb> {
+  root: Scope<TDb>;
+  transaction<T>(fn: (scope: Scope<TDb>) => Promise<T>): Promise<T>;
+  close?(): Promise<void>;
+}
+
+interface Scope<TDb> {
+  db: TDb;
+  execute(sql: string, params?: readonly unknown[]): Promise<Row[]>;
+}
+```
+
+`execute` exists for the journal. It must execute through the same connection and
+transaction represented by `db`; otherwise sidder could commit seed writes and journal
+state independently.
+
+Leave the transaction isolation at Postgres' default `read committed`. sidder re-reads the
+journal after acquiring the per-seed lock, and that re-read must see a concurrent run's
+newly committed row.

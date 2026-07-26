@@ -1,0 +1,48 @@
+---
+title: From a test suite
+description: Run explicit seed objects now, without filesystem discovery or a persistent journal.
+---
+
+The CLI is a formatter around `runSeeds()`. Tests generally want the function:
+
+```ts
+import { runSeeds } from 'sidder';
+
+await runSeeds(
+  {
+    adapter,
+    seeds: [rolesSeed, territorySeed],
+  },
+  {
+    journal: false,
+  },
+);
+```
+
+Passing seed objects skips discovery entirely. Since there is no filename to infer from,
+every inline seed must have an explicit `name`.
+
+`journal: false` means “run now and forget it happened.” Every selected seed runs, modes
+are ignored, and no journal table is read or written.
+
+## Pool ownership
+
+`runSeeds()` never calls `adapter.close()`. A suite can reuse one pool across fifty
+invocations without the first one closing it.
+
+The CLI does close an adapter after its command finishes because the CLI owns that
+process lifetime.
+
+## Inspect without formatting
+
+```ts
+import { inspect } from 'sidder';
+
+const result = await inspect({
+  adapter,
+  seeds: [rolesSeed, territorySeed],
+});
+```
+
+`inspect()` returns the data behind `sidder status`: order, per-seed status, journal
+orphans and cross-import findings.

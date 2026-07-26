@@ -1,0 +1,60 @@
+---
+title: Running seeds
+description: Forecast, filter, repeat and inspect runs without hiding why a seed did or did not run.
+---
+
+## Run everything eligible
+
+```bash
+sidder run
+```
+
+Seeds are discovered, validated and ordered before the first one starts. Every outcome
+gets a line: applied, already applied, disallowed by the environment, or failed.
+
+## Select exact seeds
+
+```bash
+sidder run --only roles,territory
+```
+
+`--only` is a filter, not a graph expansion. It does not pull dependencies in. If a
+selected seed depends on one you omitted, sidder stops and prints the corrected command.
+
+That makes `--only a,b` safe in a deploy script: it will not silently grow into a larger
+run because someone added a dependency.
+
+## Preview writes
+
+```bash
+sidder run --dry-run
+```
+
+A dry run performs config loading, discovery, validation, ordering and journal reads. It
+prints `would run`, but does not call seed code or write the journal.
+
+## Repeat the seed being edited
+
+A `once` seed ran, you changed a line, and now the journal correctly says it is done.
+Choose whether you want to preserve its journal history:
+
+```bash
+sidder run --only demo --force
+sidder forget demo
+```
+
+`--force` ignores the applied row and rewrites it after success. `forget` deletes the row
+so the next ordinary run can apply the seed again.
+
+`--force` does not bypass `environments`. That field is a safety decision written into
+the seed, not an inference sidder is allowed to overrule.
+
+## Inspect the project
+
+```bash
+sidder status
+sidder status --json
+```
+
+Human output explains transaction and cross-import warnings. JSON returns the same
+inspection data for scripts and agents.

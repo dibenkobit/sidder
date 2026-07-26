@@ -1,0 +1,56 @@
+---
+title: API reference
+description: The authoring functions, runner, inspection API and exported domain types.
+---
+
+## Authoring
+
+### `defineConfig(config)`
+
+An identity function that infers and checks a `Config`. It returns the same object.
+
+### `defineSeed(seed)`
+
+An identity function that infers and checks a `Seed`. It performs no registration and has
+no side effects.
+
+## Running
+
+### `runSeeds(config, options?)`
+
+Resolves seeds, builds a plan and applies them in order.
+
+Important options:
+
+| Option | Type | Default |
+| --- | --- | --- |
+| `env` | `string` | config, `NODE_ENV`, then `development` |
+| `only` | `string[]` | every seed |
+| `force` | `boolean` | `false` |
+| `dryRun` | `boolean` | `false` |
+| `journal` | `boolean` | `true` |
+| `baseDir` | `string` | `process.cwd()` |
+| `onEvent` | `(event: RunEvent) => void` | none |
+
+The result contains the resolved environment and an outcome for every seed. A failed seed
+throws `SeedFailedError`; the error carries the partial result, failing seed name, original
+cause and whether its writes rolled back.
+
+### `inspect(config, options?)`
+
+Returns everything the status command formats: page order, statuses, warnings and journal
+orphans. It runs no seed work.
+
+## Journal helpers
+
+`ensureJournal`, `readJournal` and `forgetApplied` are exported for integrations that need
+to operate on the same plain table.
+
+## Types
+
+The package exports the domain types used by the public API, including:
+
+- `Adapter`, `Scope` and `Row`;
+- `Config`, `Seed`, `SeedContext` and `SeedMode`;
+- `RunOptions`, `RunResult`, `RunEvent` and `SeedOutcome`;
+- `JournalEntry`, `Inspection` and `SeedStatus`.

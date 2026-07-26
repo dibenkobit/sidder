@@ -4,6 +4,9 @@
   "description": "A seed runner. Migrations got one fifteen years ago; seeds never did.",
   "type": "module",
   "packageManager": "bun@1.3.9",
+  "workspaces": [
+    "apps/*"
+  ],
   "license": "MIT",
   "author": "Nikita Snetkov",
   "repository": {
@@ -62,6 +65,10 @@
     "db:up": "docker compose up -d --wait",
     "db:down": "docker compose down -v",
     "check": "bun run lint && bun run typecheck && bun test",
+    "check:all": "bun run check && bun run docs:check",
+    "docs:dev": "bun run --cwd apps/docs dev",
+    "docs:build": "bun run --cwd apps/docs build",
+    "docs:check": "bun run --cwd apps/docs check",
     "prepublishOnly": "bun run check && bun run build"
   },
   "peerDependencies": {

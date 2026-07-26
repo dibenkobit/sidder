@@ -1,0 +1,41 @@
+---
+title: Concurrent runs
+description: The printed plan is a forecast; each seed gets its final ruling under a lock.
+---
+
+Two replicas in one deploy can read the journal at the same time. If both authorised work
+from that initial read, both would see an empty row and apply the same seed.
+
+sidder avoids that race per seed:
+
+1. begin the seed transaction;
+2. try to acquire an advisory lock derived from the seed name;
+3. if another run owns it, print `waiting`;
+4. acquire the lock and re-read this seed's journal row;
+5. apply or skip based on the current row;
+6. write the journal and commit through the same scope.
+
+The order printed at the beginning is therefore a forecast. The journal re-read under the
+lock is the ruling that authorises a write.
+
+## What the second run sees
+
+```text
+⋯ demo   waiting — another run is applying this seed; this one continues when it finishes
+· demo   already applied 2026-07-26
+```
+
+Waiting is printed only after Postgres actually refuses the non-blocking lock attempt. A
+run with no competition prints nothing extra.
+
+## The two explicit exceptions
+
+### `transaction: false`
+
+There is no transaction in which to hold the lock. sidder re-reads the journal immediately
+before running, but two runs arriving simultaneously can both apply the seed.
+
+### `mode: 'always'`
+
+An always seed is meant to run on every invocation. It still takes the lock, so concurrent
+runs serialize rather than overlap, but the second run does not skip after its re-read.

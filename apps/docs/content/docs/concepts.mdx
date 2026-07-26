@@ -1,0 +1,93 @@
+---
+title: Core concepts
+description: Five optional fields, each paying for one concrete seed-running problem.
+---
+
+The defaults are enough for one table. Add a field only when you reach the problem it
+solves.
+
+## `dependsOn`
+
+Declare work that must exist before this seed:
+
+```ts
+export default defineSeed({
+  dependsOn: ['territory', 'roles'],
+  async run({ db }) {
+    // territory and roles have already run
+  },
+});
+```
+
+This replaces importing another seed and calling it. sidder runs every seed at most once
+per invocation, validates unknown names before starting, and reports the real path when
+dependencies form a cycle.
+
+Seeds communicate through the database, not through memory. If `demo` needs region IDs,
+it selects them after `territory` runs.
+
+## `environments`
+
+Keep demo data out of production structurally:
+
+```ts
+export default defineSeed({
+  environments: ['development', 'staging'],
+  async run({ db }) {
+    // ...
+  },
+});
+```
+
+An omitted list means every environment. The current environment comes from `--env`,
+then config, then `NODE_ENV`, then `development`; the chosen value and its source are
+printed in the run header.
+
+## `mode`
+
+`once` is the default. It consults the journal and skips a seed that was already applied.
+
+Use `always` for idempotent work whose inputs live outside the seed file, such as a
+permission catalogue or enum:
+
+```ts
+export default defineSeed({
+  mode: 'always',
+  async run({ db }) {
+    // upsert the current catalogue
+  },
+});
+```
+
+There is no `on-change` mode. Correctly deciding that a seed changed means hashing its
+whole imported module graph; `always` is explicit and correct.
+
+## `transaction`
+
+Transactions are on by default. The seed and its journal row commit or roll back together.
+
+Set `transaction: false` only when a bulk load is too large for one transaction, or while
+wrapping legacy code that still writes through an imported global database handle.
+
+<Callout title="No transaction means two lost guarantees" type="warn">
+  A failed seed leaves its writes in the database, and there is no transaction in which
+  sidder can hold its per-seed advisory lock. `status` reports both consequences.
+</Callout>
+
+## `name`
+
+A discovered seed defaults to its filename without the extension. That name is used by
+`dependsOn`, `--only` and the journal.
+
+Set it explicitly as soon as another seed depends on it:
+
+```ts
+export default defineSeed({
+  name: 'territory',
+  async run({ db }) {
+    // ...
+  },
+});
+```
+
+Renaming the file now changes only its source path, not its identity.

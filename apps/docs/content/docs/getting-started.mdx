@@ -1,0 +1,86 @@
+---
+title: Getting started
+description: Install sidder and run one seed against the database handle you already have.
+---
+
+## Requirements
+
+- Postgres;
+- Node 22.18 or newer, or Bun;
+- an existing node-postgres pool or Drizzle database instance.
+
+sidder runs seed modules in its own process. The runtime used to launch the CLI must be able
+to load their TypeScript.
+
+## Install
+
+```npm
+npm install -D sidder
+```
+
+The package has zero runtime dependencies. `pg` and `drizzle-orm` are optional peers: keep
+using whichever database library your project already owns.
+
+## Generate the config
+
+```bash
+npx sidder init
+```
+
+`init` writes `sidder.config.mts`. It chooses the Drizzle template only when
+`drizzle-orm` is present in your `package.json`; otherwise it chooses node-postgres and
+says that it did. The database import is deliberately a visible placeholder.
+
+Point that import at your existing handle:
+
+```ts title="sidder.config.mts"
+import { defineConfig } from 'sidder';
+import { pgAdapter } from 'sidder/adapters/pg';
+import { pool } from './src/db/index.mts';
+
+export default defineConfig({
+  adapter: pgAdapter(pool),
+  seeds: 'seeds/**/*.mts',
+});
+```
+
+For Drizzle, import `drizzleAdapter` from `sidder/adapters/drizzle` and pass it your
+existing `db`.
+
+## Write a seed
+
+```ts title="seeds/roles.mts"
+import { defineSeed } from 'sidder';
+
+export default defineSeed({
+  async run({ db }) {
+    await db.query("insert into roles (name) values ('admin')");
+  },
+});
+```
+
+`defineSeed` is an identity function. It registers nothing and wraps nothing; it exists
+for inference, autocomplete and compile-time checking of the seed fields.
+
+## Inspect before running
+
+```bash
+npx sidder status
+```
+
+`status` shows the environment, resolved order, previously applied seeds and any
+environment or transaction warnings without executing seed work.
+
+When the plan looks right:
+
+```bash
+npx sidder run
+```
+
+The first run creates the journal table, applies the seed and records it. The next run
+prints that the seed was already applied rather than silently doing nothing.
+
+<Callout title="Using Bun">
+  Launching the package with Bun gives seed modules Bun's native TypeScript and
+  `tsconfig` path support: `bunx --bun sidder status`.
+</Callout>

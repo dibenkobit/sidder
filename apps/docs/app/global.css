@@ -1,6 +1,6 @@
-@import 'tailwindcss';
-@import 'fumadocs-ui/css/neutral.css';
-@import 'fumadocs-ui/css/preset.css';
+@import "tailwindcss";
+@import "fumadocs-ui/css/neutral.css";
+@import "fumadocs-ui/css/preset.css";
 
 html {
   scrollbar-gutter: stable;
@@ -9,4 +9,16 @@ html {
 html > body[data-scroll-locked] {
   margin-right: 0px !important;
   --removed-body-scroll-bar-size: 0px !important;
+}
+
+:root {
+  --sidder-grid: color-mix(in oklab, var(--color-fd-border) 55%, transparent);
+}
+
+.sidder-grid {
+  background-image:
+    linear-gradient(to right, var(--sidder-grid) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--sidder-grid) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: linear-gradient(to bottom, black 12%, transparent 82%);
 }

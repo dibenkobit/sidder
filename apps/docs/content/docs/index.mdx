@@ -1,13 +1,60 @@
 ---
-title: Hello World
-description: Your first document
+title: What is sidder?
+description: An ordered, resumable and transparent seed runner for Postgres.
 ---
 
-Welcome to the docs! You can start writing documents in `/content/docs`.
+Migrations have discovery, an inferred order, a record of what ran, a status command and
+one entry point. Seeds usually have a folder of scripts and an `&&` chain someone maintains
+by hand.
 
-## What is Next?
+sidder gives seeds the runner migrations have had for years:
+
+- discover seed files by convention;
+- order them from real dependencies;
+- record successful runs in the database;
+- keep the journal write in the same transaction as the seed;
+- show what ran, what skipped and why;
+- prevent concurrent deploys from applying a seed twice.
+
+<Callout title="The design rule" type="idea">
+  **Guessing is fine. Guessing quietly is not.** sidder names the config, environment,
+  seed names and order it inferred before anything reaches the database.
+</Callout>
+
+## The smallest useful surface
+
+There are three things to learn:
+
+1. the config;
+2. `defineSeed`;
+3. the `db` handle a seed receives.
+
+Everything else is optional. There is no factory DSL, global registry or special query API.
+Your existing database code stays ordinary database code.
+
+```ts title="seeds/roles.mts"
+import { defineSeed } from 'sidder';
+
+export default defineSeed({
+  async run({ db }) {
+    await db.query("insert into roles (name) values ('admin')");
+  },
+});
+```
+
+## Where to go next
 
 <Cards>
-  <Card title="Learn more about Next.js" href="https://nextjs.org/docs" />
-  <Card title="Learn more about Fumadocs" href="https://fumadocs.dev" />
+  <Card title="Get started" href="/docs/getting-started">
+    Install sidder, generate a config and run the first seed.
+  </Card>
+  <Card title="Learn the concepts" href="/docs/concepts">
+    Dependencies, environments, modes, transactions and names.
+  </Card>
+  <Card title="Run and inspect seeds" href="/docs/guides/running">
+    Use `run`, `status`, `--only`, `--force` and `--dry-run`.
+  </Card>
+  <Card title="Choose an adapter" href="/docs/reference/adapters">
+    Use node-postgres, Drizzle or implement the two-member adapter interface.
+  </Card>
 </Cards>

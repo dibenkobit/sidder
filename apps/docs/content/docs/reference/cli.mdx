@@ -1,0 +1,43 @@
+---
+title: CLI reference
+description: Commands, shared options and their exact boundaries.
+---
+
+## Commands
+
+| Command | Effect |
+| --- | --- |
+| `sidder init` | Write a starting `sidder.config.mts`. |
+| `sidder run` | Apply every eligible seed in dependency order. |
+| `sidder status` | Show what ran, what would run and the resolved order. |
+| `sidder forget <names>` | Delete journal rows so those names can run again. |
+
+`forget` accepts comma-separated names or multiple positionals.
+
+## Options
+
+| Option | Commands | Effect |
+| --- | --- | --- |
+| `-c, --config <path>` | all database commands | Use this config instead of searching upwards. |
+| `-e, --env <name>` | `run`, `status` | Override config and `NODE_ENV`. |
+| `--only <a,b>` | `run`, `status` | Select exactly these seeds; do not pull dependencies in. |
+| `--force` | `run`, `init` | Repeat applied seeds, or overwrite an existing config. |
+| `--dry-run` | `run` | Decide everything and execute nothing. |
+| `--json` | `status` | Emit the inspection as JSON. |
+| `--trace` | `run`, `status`, `forget` | Include stack traces in failures. |
+| `-h, --help` | all | Print help. |
+| `-v, --version` | all | Print the package version. |
+
+## Config discovery
+
+Without `--config`, sidder searches upward from the working directory for the nearest
+supported `sidder.config.*` file. The resolved path is printed in the header.
+
+Seed globs are relative to that config file, not necessarily to the directory where the
+command was launched.
+
+## Exit behavior
+
+A fully skipped run is successful and exits zero, but explains why nothing applied. Invalid
+config, discovery, dependency and seed failures exit non-zero with a hint describing the
+next action.
