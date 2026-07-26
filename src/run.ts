@@ -102,8 +102,7 @@ export async function runSeeds<TDb>(
 
   let journal: Map<string, JournalEntry> | null = null;
   if (useJournal) {
-    await ensureJournal(adapter.root, journalTable);
-    journal = await readJournal(adapter.root, journalTable);
+    journal = await readJournalForPlan(adapter.root, journalTable, options.dryRun ?? false);
   }
 
   const only = options.only ? new Set(options.only) : null;
@@ -180,6 +179,44 @@ export async function runSeeds<TDb>(
   }
 
   return { env, outcomes };
+}
+
+/**
+ * Reads the journal without making a dry run create it.
+ *
+ * A missing table is exactly an empty history, but only on a dry run: a real run creates
+ * it before the first decision so the seed and its row can commit together. The Postgres
+ * code is inspected structurally because both shipped adapters can wrap driver errors;
+ * every other failure still propagates, including a name that belongs to the wrong table.
+ */
+async function readJournalForPlan(
+  scope: Scope,
+  table: string,
+  dryRun: boolean,
+): Promise<Map<string, JournalEntry>> {
+  if (!dryRun) await ensureJournal(scope, table);
+
+  try {
+    return await readJournal(scope, table);
+  } catch (error) {
+    if (dryRun && postgresErrorCode(error) === '42P01') return new Map();
+    throw error;
+  }
+}
+
+function postgresErrorCode(error: unknown): string | undefined {
+  let current = error;
+
+  for (let depth = 0; depth < 4; depth += 1) {
+    if (typeof current !== 'object' || current === null) return undefined;
+
+    const code = (current as { code?: unknown }).code;
+    if (typeof code === 'string') return code;
+
+    current = (current as { cause?: unknown }).cause;
+  }
+
+  return undefined;
 }
 
 /**

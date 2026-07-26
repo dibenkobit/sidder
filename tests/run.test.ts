@@ -288,6 +288,33 @@ describe('runSeeds', () => {
     ]);
     expect(memory.committed.writes).toEqual([]);
     expect(memory.committed.journal.size).toBe(0);
+    expect(memory.statements.some((statement) => statement.startsWith('create table'))).toBe(false);
+    expect(memory.statements.some((statement) => statement.startsWith('insert into'))).toBe(false);
+  });
+
+  test('dry run treats a missing Postgres journal as empty without hiding other errors', async () => {
+    const missing = Object.assign(new Error('relation does not exist'), { code: '42P01' });
+    const other = Object.assign(new Error('permission denied'), { code: '42501' });
+
+    const withReadFailure = (failure: Error): Config => ({
+      adapter: {
+        root: {
+          db: {},
+          execute: async () => {
+            throw failure;
+          },
+        },
+        transaction: async () => {
+          throw new Error('a dry run must not open a transaction');
+        },
+      },
+      seeds: [{ name: 'roles', run: async () => {} }],
+    });
+
+    await expect(runSeeds(withReadFailure(missing), { dryRun: true })).resolves.toMatchObject({
+      outcomes: [{ name: 'roles', status: 'would-run' }],
+    });
+    await expect(runSeeds(withReadFailure(other), { dryRun: true })).rejects.toBe(other);
   });
 
   test('a dry run is distinguishable from a real one by the outcomes alone', async () => {

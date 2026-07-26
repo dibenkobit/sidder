@@ -96,6 +96,36 @@ describeIf('against a real Postgres', () => {
       expect(second.outcomes[0]).toMatchObject({ status: 'skipped' });
     });
 
+    test('dry run reads an existing journal but never creates a missing one', async () => {
+      const seeds: Seed<PgQueryable>[] = [
+        {
+          name: 'widgets',
+          run: async ({ db }) => {
+            await db.query("insert into widgets (label) values ('one')");
+          },
+        },
+      ];
+
+      const fresh = await runSeeds(configOf(seeds), { dryRun: true });
+      const relationAfterFresh = await pool.query<{ journal: string | null }>(
+        'select to_regclass($1)::text as journal',
+        [JOURNAL],
+      );
+
+      expect(fresh.outcomes).toEqual([{ name: 'widgets', status: 'would-run' }]);
+      expect(relationAfterFresh.rows[0]?.journal).toBeNull();
+      expect(await countWidgets()).toBe(0);
+
+      await runSeeds(configOf(seeds));
+      const applied = await runSeeds(configOf(seeds), { dryRun: true });
+
+      expect(applied.outcomes[0]).toMatchObject({
+        name: 'widgets',
+        status: 'skipped',
+        reason: { kind: 'already-applied' },
+      });
+    });
+
     test('a failing seed leaves neither its rows nor its journal entry', async () => {
       const seeds: Seed<PgQueryable>[] = [
         {
