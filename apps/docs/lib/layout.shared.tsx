@@ -4,19 +4,7 @@ import { appName, gitConfig } from './shared';
 export function baseOptions(): BaseLayoutProps {
   return {
     nav: {
-      title: (
-        <span className="flex items-center gap-2.5 font-semibold tracking-[-0.04em]">
-          <span
-            aria-hidden="true"
-            className="grid size-6 grid-cols-2 grid-rows-2 gap-[2px] border border-fd-foreground/30 p-1"
-          >
-            <span className="bg-fd-foreground" />
-            <span className="bg-fd-foreground/30" />
-            <span className="col-span-2 bg-fd-foreground" />
-          </span>
-          {appName}
-        </span>
-      ),
+      title: <span className="font-semibold tracking-[-0.04em]">{appName}</span>,
     },
     links: [
       {
