@@ -1,14 +1,14 @@
 import { glob } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { nameFromFile } from './config.ts';
 import {
   DuplicateSeedNameError,
   InvalidSeedError,
   NoSeedsFoundError,
   UnnamedInlineSeedError,
-} from './errors.ts';
+} from '../errors.ts';
+import type { ResolvedSeed, Seed } from '../types.ts';
 import { importModule } from './load-module.ts';
-import type { ResolvedSeed, Seed } from './types.ts';
+import { nameFromFile } from './paths.ts';
 
 /**
  * Turns whatever `config.seeds` holds into a list of named seeds.

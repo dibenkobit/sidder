@@ -107,16 +107,30 @@ bun run check     # lint + typecheck + test — run before committing
 
 ## Where things live
 
+`src/` is laid out along the pipeline, not by feature — there is one feature. The root
+holds the surface someone imports or calls; the subdirectories hold the stages that get
+it there. `tests/` mirrors it file for file.
+
 | File | What it owns |
 |---|---|
 | `types.ts` | every concept sowme has. If it is not here, sowme does not have it |
 | `errors.ts` | every way sowme can refuse to run, each with a `hint` saying what to do |
-| `plan.ts` | `decide()` — pure, no I/O. Its interesting cases test without a database |
-| `order.ts` | topological sort, deterministic, with real cycle paths in the error |
-| `journal.ts` | the SQL. One table, plain columns, readable in psql |
+| `define.ts` | `defineConfig` / `defineSeed` — the authoring surface |
+| `index.ts` | the public API. Its paths are pinned by `package.json` exports |
 | `run.ts` | the whole tool. `runSeeds()` is what the CLI wraps |
 | `inspect.ts` | everything `status` prints, as data |
+| `journal.ts` | the SQL. One table, plain columns, readable in psql |
+| `resolve/config.ts` | finding a config file, filling defaults, recording provenance |
+| `resolve/discover.ts` | globs and seed objects in, named seeds out |
+| `resolve/load-module.ts` | importing user code, and telling the two failure kinds apart |
+| `resolve/cross-imports.ts` | reading seed sources to find one importing another |
+| `resolve/paths.ts` | path formatting, nothing else — see below |
+| `plan/plan.ts` | `decide()` — pure, no I/O. Its interesting cases test without a database |
+| `plan/order.ts` | topological sort, deterministic, with real cycle paths in the error |
 | `cli/format.ts` | all output. Rule 1 of the product is enforced here |
+
+No barrel files. `src/index.ts` is the package entry point, not a re-export hub for a
+directory — import the module you mean.
 
 ## Invariants that are easy to break
 
@@ -126,6 +140,10 @@ and resumability silently becomes half-application.
 
 **`runSeeds` never calls `adapter.close()`.** A test suite runs it many times over one
 pool. Closing is the CLI's job.
+
+**`resolve/paths.ts` imports nothing.** `errors.ts` needs `displayPath`, and
+`resolve/config.ts` needs the error classes; while those two helpers lived in `config.ts`
+that was an import cycle. Moving either one back recreates it.
 
 **`TypeScriptLoaderError` fires only on the two Node error codes that mean "this runtime
 cannot read `.ts`".** A plain `SyntaxError` gets `ModuleSyntaxError`, which digs the real

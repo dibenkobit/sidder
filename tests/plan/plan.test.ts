@@ -1,7 +1,12 @@
 import { describe, expect, test } from 'bun:test';
-import { MissingDependencyError } from '../src/errors.ts';
-import { assertSelectionIsRunnable, type Decision, decide, type PlanInput } from '../src/plan.ts';
-import type { JournalEntry, ResolvedSeed, Seed } from '../src/types.ts';
+import { MissingDependencyError } from '../../src/errors.ts';
+import {
+  assertSelectionIsRunnable,
+  type Decision,
+  decide,
+  type PlanInput,
+} from '../../src/plan/plan.ts';
+import type { JournalEntry, ResolvedSeed, Seed } from '../../src/types.ts';
 
 function seed(name: string, extra: Partial<Seed> = {}): ResolvedSeed {
   return { name, file: `${name}.ts`, run: async () => {}, ...extra };

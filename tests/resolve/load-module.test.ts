@@ -2,8 +2,8 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { ModuleResolutionError, ModuleSyntaxError, SowmeError } from '../src/errors.ts';
-import { importModule } from '../src/load-module.ts';
+import { ModuleResolutionError, ModuleSyntaxError, SowmeError } from '../../src/errors.ts';
+import { importModule } from '../../src/resolve/load-module.ts';
 
 /**
  * The modules under test are written here rather than kept in `tests/fixtures`, because

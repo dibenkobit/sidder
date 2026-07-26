@@ -1,6 +1,6 @@
 import { SowmeError } from '../errors.ts';
 import type { Inspection } from '../inspect.ts';
-import type { Decision } from '../plan.ts';
+import type { Decision } from '../plan/plan.ts';
 import type { CrossImport, SeedOutcome, SkipReason } from '../types.ts';
 
 /**

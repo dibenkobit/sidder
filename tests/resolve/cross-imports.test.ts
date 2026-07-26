@@ -2,8 +2,8 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { findCrossImports } from '../src/cross-imports.ts';
-import type { ResolvedSeed } from '../src/types.ts';
+import { findCrossImports } from '../../src/resolve/cross-imports.ts';
+import type { ResolvedSeed } from '../../src/types.ts';
 
 /**
  * The sources live in a temp directory rather than in `tests/fixtures`, because several of

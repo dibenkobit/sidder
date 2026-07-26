@@ -2,8 +2,8 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { isParseFailure, ModuleSyntaxError } from '../src/errors.ts';
-import { importModule } from '../src/load-module.ts';
+import { isParseFailure, ModuleSyntaxError } from '../../src/errors.ts';
+import { importModule } from '../../src/resolve/load-module.ts';
 
 /**
  * Importing a seed has two failures that look alike from the outside and want opposite

@@ -1,8 +1,8 @@
 import { existsSync } from 'node:fs';
-import { dirname, isAbsolute, parse as parsePath, relative, resolve } from 'node:path';
-import { ConfigNotFoundError, InvalidConfigError } from './errors.ts';
+import { dirname, relative, resolve } from 'node:path';
+import { ConfigNotFoundError, InvalidConfigError } from '../errors.ts';
+import type { Adapter, Config, Seed } from '../types.ts';
 import { importModule } from './load-module.ts';
-import type { Adapter, Config, Seed } from './types.ts';
 
 export const CONFIG_FILENAMES = [
   'sowme.config.ts',
@@ -129,17 +129,4 @@ function resolveSeeds<TDb>(config: Config<TDb>): { value: string[] | Seed<TDb>[]
     return { value: [config.seeds], source: 'config' };
   }
   return { value: config.seeds, source: 'config' };
-}
-
-/** Formats the config file path the way the run header shows it. */
-export function displayPath(file: string, from: string = process.cwd()): string {
-  const rel = relative(from, file);
-  if (rel === '') return file;
-  if (isAbsolute(rel) || rel.startsWith('..')) return file;
-  return rel;
-}
-
-/** A seed file's default name: its basename with the extension removed. */
-export function nameFromFile(file: string): string {
-  return parsePath(file).name;
 }

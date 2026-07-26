@@ -2,9 +2,10 @@
 import { createRequire } from 'node:module';
 import { dirname } from 'node:path';
 import { parseArgs } from 'node:util';
-import { displayPath, loadConfigFile, type ResolvedConfig, resolveConfig } from '../config.ts';
 import { inspect } from '../inspect.ts';
 import { ensureJournal, forgetApplied } from '../journal.ts';
+import { loadConfigFile, type ResolvedConfig, resolveConfig } from '../resolve/config.ts';
+import { displayPath } from '../resolve/paths.ts';
 import { runSeeds, SeedFailedError } from '../run.ts';
 import type { Config, RunEvent } from '../types.ts';
 import {

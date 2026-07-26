@@ -1,15 +1,15 @@
 import { describe, expect, test } from 'bun:test';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { discoverSeeds } from '../src/discover.ts';
 import {
   DuplicateSeedNameError,
   InvalidSeedError,
   NoSeedsFoundError,
   UnnamedInlineSeedError,
-} from '../src/errors.ts';
+} from '../../src/errors.ts';
+import { discoverSeeds } from '../../src/resolve/discover.ts';
 
-const fixtures = resolve(dirname(fileURLToPath(import.meta.url)), 'fixtures');
+const fixtures = resolve(dirname(fileURLToPath(import.meta.url)), '../fixtures');
 
 describe('discoverSeeds from files', () => {
   test('names a seed after its file when it does not name itself', async () => {

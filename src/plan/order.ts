@@ -1,5 +1,5 @@
-import { DependencyCycleError, UnknownDependencyError } from './errors.ts';
-import type { ResolvedSeed } from './types.ts';
+import { DependencyCycleError, UnknownDependencyError } from '../errors.ts';
+import type { ResolvedSeed } from '../types.ts';
 
 /**
  * Sorts seeds so that every seed comes after everything it depends on.

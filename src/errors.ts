@@ -1,6 +1,6 @@
 import { basename, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { displayPath } from './config.ts';
+import { displayPath } from './resolve/paths.ts';
 
 /**
  * Every way sowme can refuse to run, in one file.

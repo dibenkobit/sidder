@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
-import { DependencyCycleError, UnknownDependencyError } from '../src/errors.ts';
-import { orderSeeds } from '../src/order.ts';
-import type { ResolvedSeed } from '../src/types.ts';
+import { DependencyCycleError, UnknownDependencyError } from '../../src/errors.ts';
+import { orderSeeds } from '../../src/plan/order.ts';
+import type { ResolvedSeed } from '../../src/types.ts';
 
 function seed(name: string, dependsOn?: string[]): ResolvedSeed {
   return {

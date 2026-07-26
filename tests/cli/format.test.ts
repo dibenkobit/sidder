@@ -5,9 +5,9 @@ import {
   formatNotSelected,
   formatStatus,
   formatWaiting,
-} from '../src/cli/format.ts';
-import type { Inspection, SeedStatus } from '../src/inspect.ts';
-import type { SeedOutcome } from '../src/types.ts';
+} from '../../src/cli/format.ts';
+import type { Inspection, SeedStatus } from '../../src/inspect.ts';
+import type { SeedOutcome } from '../../src/types.ts';
 
 /**
  * `format.ts` decides once at import whether it may use colour, from `isTTY` and the

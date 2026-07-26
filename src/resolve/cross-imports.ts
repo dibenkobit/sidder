@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
-import type { CrossImport, ResolvedSeed } from './types.ts';
+import type { CrossImport, ResolvedSeed } from '../types.ts';
 
 /**
  * Reads every seed's source and reports the imports that land on another seed's file.

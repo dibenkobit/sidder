@@ -4,7 +4,7 @@ import {
   ModuleResolutionError,
   ModuleSyntaxError,
   TypeScriptLoaderError,
-} from './errors.ts';
+} from '../errors.ts';
 
 /**
  * `await import()`, with three failures answered properly.

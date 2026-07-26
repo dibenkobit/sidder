@@ -1,6 +1,3 @@
-import { resolveConfig } from './config.ts';
-import { findCrossImports } from './cross-imports.ts';
-import { discoverSeeds } from './discover.ts';
 import {
   ensureJournal,
   lockSeed,
@@ -9,8 +6,16 @@ import {
   recordApplied,
   tryLockSeed,
 } from './journal.ts';
-import { orderSeeds } from './order.ts';
-import { assertSelectionIsRunnable, type Decision, decide, decideFromJournal } from './plan.ts';
+import { orderSeeds } from './plan/order.ts';
+import {
+  assertSelectionIsRunnable,
+  type Decision,
+  decide,
+  decideFromJournal,
+} from './plan/plan.ts';
+import { resolveConfig } from './resolve/config.ts';
+import { findCrossImports } from './resolve/cross-imports.ts';
+import { discoverSeeds } from './resolve/discover.ts';
 import type {
   Adapter,
   Config,

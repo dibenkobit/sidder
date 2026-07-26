@@ -1,5 +1,5 @@
-import { MissingDependencyError } from './errors.ts';
-import type { JournalEntry, ResolvedSeed, SkipReason } from './types.ts';
+import { MissingDependencyError } from '../errors.ts';
+import type { JournalEntry, ResolvedSeed, SkipReason } from '../types.ts';
 
 export type Decision = { action: 'run' } | { action: 'skip'; reason: SkipReason };
 
