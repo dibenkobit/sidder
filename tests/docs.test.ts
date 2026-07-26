@@ -8,6 +8,7 @@ const DOC_FILES = [
   ...['README.md', 'CONTRIBUTING.md', 'SECURITY.md', 'SUPPORT.md', 'CODE_OF_CONDUCT.md'].map(
     (file) => join(ROOT, file),
   ),
+  join(ROOT, 'examples/node-postgres/README.md'),
   ...readdirSync(DOCS_DIR)
     .filter((file) => file.endsWith('.md'))
     .sort()

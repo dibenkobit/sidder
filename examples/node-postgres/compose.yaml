@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: sidder
+      POSTGRES_PASSWORD: sidder
+      POSTGRES_DB: sidder
+    ports:
+      - "55434:5432"
+    volumes:
+      - ./schema.sql:/docker-entrypoint-initdb.d/001-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sidder"]
+      interval: 1s
+      timeout: 3s
+      retries: 30

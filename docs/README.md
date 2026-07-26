@@ -15,6 +15,7 @@ an installed package to a seed that has run. Come here when you need the exact c
 | Journal schema, permissions, resumability and concurrent runs | [Journal and concurrency](journal.md) |
 | `runSeeds`, `inspect`, events, results and errors | [Programmatic API](programmatic-api.md) |
 | A failure in front of you right now | [Troubleshooting](troubleshooting.md) |
+| A complete local project | [node-postgres example](../examples/node-postgres/README.md) |
 
 ## Project information
 

@@ -163,6 +163,7 @@ code stays ordinary TypeScript.
 | Journal schema, permissions and concurrent runs | [Journal and concurrency](docs/journal.md) |
 | `runSeeds`, `inspect`, events and public errors | [Programmatic API](docs/programmatic-api.md) |
 | Diagnosis by symptom | [Troubleshooting](docs/troubleshooting.md) |
+| A complete project to run locally | [node-postgres example](examples/node-postgres/README.md) |
 
 The [documentation index](docs/README.md) is the stable entry point for the complete
 reference.
