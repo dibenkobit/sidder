@@ -27,7 +27,15 @@ export interface Scope<TDb = unknown> {
 export interface Adapter<TDb = unknown> {
   /** The scope outside of any transaction. */
   root: Scope<TDb>;
-  /** Runs `fn` in a transaction: commit when it resolves, roll back when it throws. */
+  /**
+   * Runs `fn` in a transaction: commit when it resolves, roll back when it throws.
+   *
+   * Leave the isolation level at the default. sowme decides whether a seed still needs
+   * running by re-reading its journal row inside this transaction, which is only exact
+   * under read committed; at repeatable read or above the re-read is too old to see a
+   * concurrent run's row and the journal write fails with a serialization error instead.
+   * Safe either way — see `executeSeed` in `run.ts` — but only quiet at the default.
+   */
   transaction<T>(fn: (scope: Scope<TDb>) => Promise<T>): Promise<T>;
   /**
    * Releases connections.
@@ -96,6 +104,12 @@ export interface Seed<TDb = unknown> {
    * when wrapping legacy code that writes through an imported `db` global instead
    * of the `db` it is handed. Those writes escape the transaction silently, so the
    * atomicity would be a lie. See README — "Wrapping seeds you already have".
+   *
+   * It costs more than atomicity. Two concurrent runs are kept off the same seed by a
+   * lock held for the length of its transaction, and a seed with no transaction has
+   * nowhere to hold one: sowme re-reads the journal immediately before running it, which
+   * catches a run that finished earlier but not one arriving at the same instant. Every
+   * other seed is exclusive; this one is only careful.
    */
   transaction?: boolean;
 

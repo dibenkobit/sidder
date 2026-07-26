@@ -124,6 +124,31 @@ describe('runSeeds', () => {
     expect(memory.committed.journal.size).toBe(0);
   });
 
+  test('locks the seed and re-reads its row before running it', async () => {
+    // The order is the whole protection: a lock taken after the seed ran, or a journal
+    // read taken before the lock, would leave the window this closes wide open. Nothing
+    // in one process can prove the lock excludes anybody — postgres.test.ts does that —
+    // but the sequence is checkable here, from inside the seed that comes after it.
+    let seenWhenTheSeedRan: string[] = [];
+    const { config, memory } = setup([
+      {
+        name: 'roles',
+        run: async () => {
+          seenWhenTheSeedRan = [...memory.statements];
+        },
+      },
+    ]);
+
+    await runSeeds(config);
+
+    expect(seenWhenTheSeedRan).toEqual([
+      'create table if not exists sowme_journal (',
+      'select name, applied_at, environment, duration_ms from sowme_journal',
+      'select pg_advisory_xact_lock(hashtext($1), hashtext($2))',
+      'select name, applied_at, environment, duration_ms from sowme_journal where name = $1',
+    ]);
+  });
+
   test('journal: false runs everything and records nothing', async () => {
     const { config, memory } = setup([writing('roles')]);
 
