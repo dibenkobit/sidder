@@ -9,6 +9,8 @@ export interface PlanInput {
   journal: Map<string, JournalEntry> | null;
   /** The `--only` selection, or null for "everything". */
   only: Set<string> | null;
+  /** `--force`: run even what the journal says has already been applied. */
+  force: boolean;
 }
 
 /**
@@ -19,6 +21,10 @@ export interface PlanInput {
  * The order of the checks is the order of the answers you want to hear. Asking for a
  * dev-only seed in production should say "wrong environment", not "you didn't select
  * it" — so selection is checked first and everything that survives it gets a real reason.
+ *
+ * `force` sits below `environments` for the same reason: the two gates above it are
+ * things you said, and force is only an answer to the journal, which is something sowme
+ * observed. It overrules what sowme remembers, never what you declared.
  */
 export function decide<TDb>(seed: ResolvedSeed<TDb>, input: PlanInput): Decision {
   if (input.only !== null && !input.only.has(seed.name)) {
@@ -28,6 +34,8 @@ export function decide<TDb>(seed: ResolvedSeed<TDb>, input: PlanInput): Decision
   if (seed.environments !== undefined && !seed.environments.includes(input.env)) {
     return { action: 'skip', reason: { kind: 'wrong-env', allowed: seed.environments } };
   }
+
+  if (input.force) return { action: 'run' };
 
   // Without a journal there is nothing to consult, so `mode` has nothing to mean.
   if (input.journal === null) return { action: 'run' };

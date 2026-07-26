@@ -4,6 +4,7 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 import { type DrizzleLike, drizzleAdapter } from '../src/adapters/drizzle.ts';
 import { type PgPool, type PgQueryable, pgAdapter } from '../src/adapters/pg.ts';
+import { forgetApplied } from '../src/journal.ts';
 import { runSeeds } from '../src/run.ts';
 import type { Config, Seed } from '../src/types.ts';
 
@@ -52,6 +53,14 @@ describeIf('against a real Postgres', () => {
       `select name from ${JOURNAL} order by name`,
     );
     return rows.map((row) => row.name);
+  }
+
+  async function appliedAt(name: string): Promise<Date> {
+    const { rows } = await pool.query<{ applied_at: Date }>(
+      `select applied_at from ${JOURNAL} where name = $1`,
+      [name],
+    );
+    return rows[0]!.applied_at;
   }
 
   describe('pgAdapter', () => {
@@ -133,6 +142,48 @@ describeIf('against a real Postgres', () => {
       );
       expect(rows[0]?.environment).toBe('staging');
       expect(rows[0]?.duration_ms).toBeGreaterThanOrEqual(0);
+    });
+
+    test('force re-runs an applied seed and moves its journal row forward', async () => {
+      const seeds: Seed<PgQueryable>[] = [
+        {
+          name: 'widgets',
+          run: async ({ db }) => {
+            await db.query("insert into widgets (label) values ('again')");
+          },
+        },
+      ];
+
+      await runSeeds(configOf(seeds));
+      const first = await appliedAt('widgets');
+
+      await runSeeds(configOf(seeds), { force: true });
+
+      expect(await countWidgets()).toBe(2);
+      expect(await journalNames()).toEqual(['widgets']);
+      expect((await appliedAt('widgets')).getTime()).toBeGreaterThan(first.getTime());
+    });
+
+    test('forget deletes the row, and the seed runs again on the next ordinary run', async () => {
+      const seeds: Seed<PgQueryable>[] = [
+        {
+          name: 'widgets',
+          run: async ({ db }) => {
+            await db.query("insert into widgets (label) values ('once more')");
+          },
+        },
+      ];
+
+      await runSeeds(configOf(seeds));
+      expect(await forgetApplied(adapter.root, JOURNAL, ['widgets', 'never-existed'])).toEqual([
+        'widgets',
+      ]);
+      expect(await journalNames()).toEqual([]);
+
+      await runSeeds(configOf(seeds));
+
+      expect(await countWidgets()).toBe(2);
+      expect(await journalNames()).toEqual(['widgets']);
     });
 
     test('an always seed re-runs and its journal row moves forward', async () => {

@@ -1,6 +1,12 @@
 import { describe, expect, test } from 'bun:test';
 import { UnsafeTableNameError } from '../src/errors.ts';
-import { assertSafeTableName, ensureJournal, readJournal, recordApplied } from '../src/journal.ts';
+import {
+  assertSafeTableName,
+  ensureJournal,
+  forgetApplied,
+  readJournal,
+  recordApplied,
+} from '../src/journal.ts';
 import { createMemoryAdapter } from './helpers/memory-adapter.ts';
 
 describe('assertSafeTableName', () => {
@@ -68,5 +74,45 @@ describe('journal round trip', () => {
 
     expect(journal.size).toBe(1);
     expect(journal.get('roles')?.environment).toBe('production');
+  });
+});
+
+describe('forgetApplied', () => {
+  async function journalOf(...names: string[]) {
+    const { adapter } = createMemoryAdapter();
+    await ensureJournal(adapter.root, 'sowme_journal');
+    for (const name of names) {
+      await recordApplied(adapter.root, 'sowme_journal', {
+        name,
+        environment: 'development',
+        durationMs: 1,
+      });
+    }
+    return adapter;
+  }
+
+  test('deletes the named rows and leaves the rest', async () => {
+    const adapter = await journalOf('roles', 'territory', 'demo');
+
+    const forgotten = await forgetApplied(adapter.root, 'sowme_journal', ['demo', 'roles']);
+
+    expect(forgotten.sort()).toEqual(['demo', 'roles']);
+    expect([...(await readJournal(adapter.root, 'sowme_journal')).keys()]).toEqual(['territory']);
+  });
+
+  test('reports which names had no row, rather than failing on them', async () => {
+    // `forget` works on the journal, not on the seed list — so a typo and an orphan row
+    // left by a rename are both ordinary answers, not errors.
+    const adapter = await journalOf('roles');
+
+    expect(await forgetApplied(adapter.root, 'sowme_journal', ['nope'])).toEqual([]);
+    expect((await readJournal(adapter.root, 'sowme_journal')).size).toBe(1);
+  });
+
+  test('issues no statement at all for an empty list', async () => {
+    const { adapter, statements } = createMemoryAdapter();
+
+    expect(await forgetApplied(adapter.root, 'sowme_journal', [])).toEqual([]);
+    expect(statements).toEqual([]);
   });
 });

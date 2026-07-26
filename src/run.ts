@@ -46,8 +46,9 @@ export async function runSeeds<TDb>(
   }
 
   const only = options.only ? new Set(options.only) : null;
+  const force = options.force ?? false;
   const decisions = new Map<string, Decision>(
-    ordered.map((seed) => [seed.name, decide(seed, { env, journal, only })]),
+    ordered.map((seed) => [seed.name, decide(seed, { env, journal, only, force })]),
   );
   assertSelectionIsRunnable(ordered, decisions, journal);
 

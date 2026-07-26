@@ -69,7 +69,9 @@ export async function inspect<TDb>(
     mode: seed.mode ?? 'once',
     transaction: seed.transaction ?? true,
     entry: journal.get(seed.name) ?? null,
-    decision: decide(seed, { env, journal, only }),
+    // Deliberately unforced: `status` answers "what would `sowme run` do", and the
+    // answer under --force is "all of them", which is not worth printing.
+    decision: decide(seed, { env, journal, only, force: false }),
   }));
 
   const known = new Set(ordered.map((seed) => seed.name));

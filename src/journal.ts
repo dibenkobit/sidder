@@ -81,6 +81,34 @@ export async function recordApplied(
   );
 }
 
+/**
+ * Deletes journal rows, and reports which names actually had one.
+ *
+ * The counterpart to `once`: a seed is skipped because the journal remembers it, so
+ * forgetting the row is how you make it runnable again without opening psql. It works on
+ * names rather than seeds on purpose — an orphan row left behind by a renamed file is a
+ * thing `status` tells you about and therefore a thing you must be able to delete.
+ *
+ * Names are bound one parameter each rather than as one array, because arrays are a
+ * driver feature and positional parameters are the whole of what `Scope.execute` promises.
+ */
+export async function forgetApplied(
+  scope: Scope,
+  table: string,
+  names: readonly string[],
+): Promise<string[]> {
+  assertSafeTableName(table);
+  if (names.length === 0) return [];
+
+  const placeholders = names.map((_, index) => `$${index + 1}`).join(', ');
+  const rows = await scope.execute(
+    `delete from ${table} where name in (${placeholders}) returning name`,
+    names,
+  );
+
+  return rows.map((row) => String(row['name']));
+}
+
 /** Drivers hand back a Date, a string, or a number depending on the driver. */
 function toDate(value: unknown): Date {
   if (value instanceof Date) return value;

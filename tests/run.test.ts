@@ -179,6 +179,39 @@ describe('runSeeds', () => {
     expect(memory.committed.writes).toEqual(['roles']);
   });
 
+  test('force applies a seed the journal already has', async () => {
+    const { config, memory } = setup([writing('demo')]);
+
+    await runSeeds(config);
+    await runSeeds(config, { force: true });
+
+    // Ran twice, recorded once — the row is rewritten, not duplicated. That the new row
+    // carries the *later* time needs a real timestamp, so postgres.test.ts proves it.
+    expect(memory.committed.writes).toEqual(['demo', 'demo']);
+    expect([...memory.committed.journal.keys()]).toEqual(['demo']);
+  });
+
+  test('force still respects environments', async () => {
+    const { config, memory } = setup(
+      [writing('fake-users', { environments: ['development'] })],
+      'production',
+    );
+
+    const result = await runSeeds(config, { force: true });
+
+    expect(memory.committed.writes).toEqual([]);
+    expect(result.outcomes[0]).toMatchObject({ reason: { kind: 'wrong-env' } });
+  });
+
+  test('--only and --force compose: exactly that seed, journal or not', async () => {
+    const { config, memory } = setup([writing('roles'), writing('demo')]);
+
+    await runSeeds(config);
+    await runSeeds(config, { only: ['demo'], force: true });
+
+    expect(memory.committed.writes).toEqual(['roles', 'demo', 'demo']);
+  });
+
   test('emits a plan before anything runs, then one event per seed', async () => {
     const { config } = setup([writing('roles'), writing('demo', { dependsOn: ['roles'] })]);
     const events: RunEvent[] = [];

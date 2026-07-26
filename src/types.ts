@@ -173,6 +173,18 @@ export type RunEvent =
 export interface RunOptions {
   /** Run only these seeds. Dependencies are not pulled in — see `MissingDependencyError`. */
   only?: string[] | undefined;
+  /**
+   * Run seeds the journal says have already been applied. Default: `false`.
+   *
+   * This is the seed you are editing right now: it ran once, you changed a line, and
+   * `once` is correctly refusing to run it again. Force says "I know, do it anyway",
+   * and the journal row is rewritten with the new time.
+   *
+   * It defeats the journal and nothing else. `environments` still applies, because that
+   * gate is a decision written into the seed file — forcing your way past it is not
+   * impatience, it is running production data in development.
+   */
+  force?: boolean | undefined;
   /** Overrides `config.env`. */
   env?: string | undefined;
   /**

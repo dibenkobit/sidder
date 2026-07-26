@@ -2,15 +2,18 @@
 import { createRequire } from 'node:module';
 import { dirname } from 'node:path';
 import { parseArgs } from 'node:util';
-import { displayPath, loadConfigFile, resolveConfig } from '../config.ts';
+import { displayPath, loadConfigFile, type ResolvedConfig, resolveConfig } from '../config.ts';
 import { inspect } from '../inspect.ts';
+import { ensureJournal, forgetApplied } from '../journal.ts';
 import { runSeeds } from '../run.ts';
-import type { Config, RunEvent } from '../types.ts';
+import type { Config, RunEvent, SeedOutcome } from '../types.ts';
 import {
   CLEAR_LINE,
   formatDuration,
   formatError,
+  formatForgotten,
   formatHeader,
+  formatNothingSelected,
   formatSeedFailure,
   formatSkipReason,
   formatStatus,
@@ -25,20 +28,27 @@ const VERSION = (createRequire(import.meta.url)('../../package.json') as { versi
 
 const HELP = `sowme ${VERSION} — a seed runner
 
-  sowme run       run every seed that has not run yet, in dependency order
-  sowme status    show what has run, what would run, and in what order
-  sowme init      write a starting sowme.config.ts
+  sowme run          run every seed that has not run yet, in dependency order
+  sowme status       show what has run, what would run, and in what order
+  sowme forget <a>   drop seeds from the journal so they run again
+  sowme init         write a starting sowme.config.ts
 
 Options
   -c, --config <path>   config file (default: nearest sowme.config.ts, searching upwards)
   -e, --env <name>      environment to run as (default: NODE_ENV, then "development")
       --only <a,b>      run exactly these seeds; dependencies are not pulled in
+      --force           run: apply seeds the journal has already recorded
+                        init: overwrite an existing config
       --dry-run         decide everything, execute nothing
       --json            status as JSON
       --trace           print stack traces instead of just the error
-      --force           init: overwrite an existing config
   -h, --help
   -v, --version
+
+The seed you are editing right now is the one case the journal gets in the way of:
+
+  sowme run --only demo --force   apply it again, journal or not
+  sowme forget demo               drop its row, then run normally
 
 sowme imports your seeds with the runtime it was launched with, so run it under Bun or
 Node >= 22.18 for TypeScript to work without a loader.`;
@@ -80,6 +90,8 @@ async function main(argv: string[]): Promise<number> {
       return await commandRun(values);
     case 'status':
       return await commandStatus(values);
+    case 'forget':
+      return await commandForget(values, positionals.slice(1).flatMap(splitNames));
     default:
       console.error(`${style.red('error')} unknown command "${command}"\n`);
       console.error(HELP);
@@ -95,15 +107,22 @@ function commandInit(force: boolean): number {
 
 type Values = { config?: string | undefined; env?: string | undefined; only?: string | undefined };
 
-/** Loads the config and prints the header, which is where every inferred value is named. */
+/**
+ * Loads the config and prints the header, which is where every inferred value is named.
+ *
+ * `display` is separate from `values` because it is about this command's output, not
+ * about which config to load: `status` suppresses the header for `--json`, and only
+ * `run` announces the two modes that make it behave unlike itself.
+ */
 async function open(
-  values: Values & { json?: boolean; dryRun?: boolean },
-): Promise<{ config: Config; baseDir: string; env: string }> {
+  values: Values,
+  display: { json?: boolean; dryRun?: boolean; force?: boolean } = {},
+): Promise<{ config: Config; baseDir: string; resolved: ResolvedConfig }> {
   const { config, file } = await loadConfigFile(values.config);
   const baseDir = dirname(file);
   const resolved = resolveConfig(config, { env: values.env, baseDir });
 
-  if (!values.json) {
+  if (!display.json) {
     console.log(
       formatHeader({
         version: VERSION,
@@ -113,18 +132,26 @@ async function open(
         journalTable: resolved.journalTable,
       }),
     );
-    if (values.dryRun) console.log(style.yellow('dry run — nothing will be written'));
+    if (display.dryRun) console.log(style.yellow('dry run — nothing will be written'));
+    if (display.force) {
+      console.log(style.yellow('--force — applied seeds will run again, journal or not'));
+    }
     console.log('');
   }
 
-  return { config, baseDir, env: resolved.env };
+  return { config, baseDir, resolved };
 }
 
 async function commandRun(
-  values: Values & { 'dry-run': boolean; trace: boolean },
+  values: Values & { 'dry-run': boolean; force: boolean; trace: boolean },
 ): Promise<number> {
   const dryRun = values['dry-run'];
-  const { config, baseDir, env } = await open({ ...values, dryRun });
+  const only = parseOnly(values.only);
+  const {
+    config,
+    baseDir,
+    resolved: { env },
+  } = await open(values, { dryRun, force: values.force });
 
   /**
    * Remembered from the event, so the catch below can name the seed that threw.
@@ -167,7 +194,8 @@ async function commandRun(
   try {
     const result = await runSeeds(config, {
       env: values.env,
-      only: parseOnly(values.only),
+      only,
+      force: values.force,
       dryRun,
       baseDir,
       onEvent,
@@ -182,6 +210,13 @@ async function commandRun(
         `  ${applied} ${verb}, ${skipped} skipped in ${formatDuration(performance.now() - startedAt)}`,
       ),
     );
+
+    // You named seeds and nothing happened. Say what to do about it.
+    const stale = applied > 0 || only === undefined ? [] : alreadyApplied(result.outcomes);
+    if (stale.length > 0) {
+      console.log('');
+      console.log(formatNothingSelected(stale));
+    }
     return 0;
   } catch (error) {
     // A seed threw. The runner already stopped and the transaction already resolved,
@@ -202,7 +237,7 @@ async function commandRun(
 }
 
 async function commandStatus(values: Values & { json: boolean }): Promise<number> {
-  const { config, baseDir } = await open(values);
+  const { config, baseDir } = await open(values, { json: values.json });
 
   try {
     const inspection = await inspect(config, {
@@ -218,12 +253,52 @@ async function commandStatus(values: Values & { json: boolean }): Promise<number
   }
 }
 
-function parseOnly(value: string | undefined): string[] | undefined {
-  if (value === undefined) return undefined;
+/**
+ * Deletes journal rows so their seeds run again.
+ *
+ * Discovers no seeds, on purpose. It works on the journal rather than on the seed list,
+ * which is what lets it delete the orphan row `status` complains about after a rename —
+ * and what lets it work at all when the seed file no longer imports.
+ */
+async function commandForget(values: Values, names: string[]): Promise<number> {
+  if (names.length === 0) {
+    console.error(`${style.red('error')} forget needs at least one seed name`);
+    console.error(style.dim('  sowme forget demo — `sowme status` lists the names'));
+    return 1;
+  }
+
+  const { config, resolved } = await open(values);
+
+  try {
+    await ensureJournal(resolved.adapter.root, resolved.journalTable);
+    const forgotten = new Set(
+      await forgetApplied(resolved.adapter.root, resolved.journalTable, names),
+    );
+
+    console.log(formatForgotten(names.map((name) => ({ name, forgotten: forgotten.has(name) }))));
+    return 0;
+  } finally {
+    await config.adapter.close?.();
+  }
+}
+
+/** The seeds this run skipped because the journal already had them. */
+function alreadyApplied(outcomes: readonly SeedOutcome[]): string[] {
+  return outcomes
+    .filter((o) => o.status === 'skipped' && o.reason.kind === 'already-applied')
+    .map((o) => o.name);
+}
+
+/** `a,b` and `a, b` are both two names. */
+function splitNames(value: string): string[] {
   return value
     .split(',')
     .map((name) => name.trim())
     .filter((name) => name.length > 0);
+}
+
+function parseOnly(value: string | undefined): string[] | undefined {
+  return value === undefined ? undefined : splitNames(value);
 }
 
 try {

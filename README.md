@@ -222,6 +222,7 @@ sowme run --only roles,territory           # exactly these
 sowme run --dry-run                        # decide everything, execute nothing
 sowme status                               # what has run, what would, in what order
 sowme status --json                        # the same, for scripts and agents
+sowme forget demo                          # drop journal rows so their seeds run again
 sowme init                                 # write a starting config
 ```
 
@@ -230,6 +231,29 @@ something you selected needs something you did not, sowme stops and prints the c
 to run instead. A dependency skipped by `environments` is fine, because that gate is a
 decision you wrote into a file; a name missing from `--only` is a typo you made thirty
 seconds ago.
+
+### The seed you are editing right now
+
+`once` is right for a seed you wrote last month and wrong for the one open in your
+editor. It ran, you changed a line, and the journal now says there is nothing to do.
+
+```bash
+sowme run --only demo --force   # apply it again, journal or not
+sowme forget demo               # drop its row, then run normally
+```
+
+`--force` defeats the journal and nothing else: `environments` still applies, because
+that gate is a decision written into the seed file rather than something sowme worked
+out. Forcing past it would not be impatience, it would be seeding production data into
+development.
+
+`--only` alone stays a filter — it narrows the set and the ordinary rules still apply,
+which is what keeps `--only a,b` safe in a deploy script. When that means nothing runs,
+sowme says so and prints both commands above rather than leaving you to wonder.
+
+`forget` works on the journal, not on the seed list. That is deliberate: the row left
+behind by a renamed file — the one `status` reports as an orphan — is exactly a thing
+you need to be able to delete, and it has no seed to look up.
 
 ---
 
@@ -318,6 +342,10 @@ create table sowme_journal (
 It lives in your database rather than in a file for exactly one reason: so it can be
 written inside the same transaction as the seed it records. Rename it with
 `journalTable` in your config.
+
+Deleting a row makes its seed runnable again, which is all `sowme forget` does — and
+you are welcome to do it in psql instead. Nothing else in sowme depends on the row
+existing.
 
 ---
 

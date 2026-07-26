@@ -115,6 +115,42 @@ export function formatStatus(inspection: Inspection): string {
   return lines.join('\n');
 }
 
+/**
+ * A `--only` run that did nothing, because everything named was already in the journal.
+ *
+ * `--only` is a filter, not an imperative — it narrows the set and the ordinary rules
+ * still apply, which is what keeps it safe in a deploy script. But you typed a name and
+ * nothing happened, and that gap is where an afternoon goes. So the two commands that
+ * resolve it are printed rather than described.
+ */
+export function formatNothingSelected(names: readonly string[]): string {
+  const commands: [string, string][] = [
+    [`sowme run --only ${names.join(',')} --force`, 'run it anyway'],
+    [
+      `sowme forget ${names.join(' ')}`,
+      names.length === 1 ? 'drop its journal row' : 'drop their journal rows',
+    ],
+  ];
+  const width = commands.reduce((max, [command]) => Math.max(max, command.length), 0);
+
+  return [
+    `  ${style.yellow('nothing ran')} — every seed you selected is already in the journal.`,
+    ...commands.map(([command, note]) => `    ${command.padEnd(width)}  ${style.dim(note)}`),
+  ].join('\n');
+}
+
+export function formatForgotten(results: readonly { name: string; forgotten: boolean }[]): string {
+  const pad = padder(results.map((result) => result.name));
+
+  return results
+    .map(({ name, forgotten }) =>
+      forgotten
+        ? `  ${style.green('✓')} ${pad(name)}  ${style.dim('forgotten — it will run again')}`
+        : `  ${style.dim('·')} ${pad(name)}  ${style.dim('not in the journal')}`,
+    )
+    .join('\n');
+}
+
 const indent = (text: string) =>
   text
     .split('\n')

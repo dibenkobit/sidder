@@ -9,7 +9,7 @@ import type { Adapter, JournalEntry, Row, Scope } from '../../src/types.ts';
  * copy that replaces the committed state on success and is thrown away on failure —
  * which is what a real ROLLBACK does, expressed in twenty lines.
  *
- * It recognises sowme's three journal statements rather than parsing SQL. That is a
+ * It recognises sowme's four journal statements rather than parsing SQL. That is a
  * deliberate limit: these tests prove the runner's decisions, and the SQL itself is
  * proved against a real Postgres in postgres.test.ts.
  */
@@ -95,6 +95,15 @@ function applyJournalStatement(state: MemoryState, sql: string, params: readonly
     const [name, environment, durationMs] = params as [string, string, number];
     state.journal.set(name, { name, environment, durationMs, appliedAt: new Date() });
     return [];
+  }
+
+  if (statement.startsWith('delete from')) {
+    // `returning name`, modelled: only the names that were actually there come back.
+    return (params as string[])
+      .filter((name) => state.journal.delete(name))
+      .map((name) => ({
+        name,
+      }));
   }
 
   throw new Error(`memory adapter received a statement it does not model: ${sql}`);
