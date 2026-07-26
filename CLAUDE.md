@@ -33,8 +33,7 @@ tools and two configs"* is an answer. *"Biome"* is not.
 
 Before adding any dependency, check that it is maintained and compatible with the stack
 here. A recommendation built on an abandoned package costs far more than the search that
-would have caught it. This project has **zero runtime dependencies** and every proposal
-to change that needs an argument.
+would have caught it.
 
 ## 3. Corrections arrive mid-task. Apply them immediately
 
