@@ -9,7 +9,7 @@ import type { Adapter, JournalEntry, Row, Scope } from '../../src/types.ts';
  * copy that replaces the committed state on success and is thrown away on failure —
  * which is what a real ROLLBACK does, expressed in twenty lines.
  *
- * It recognises sowme's journal statements rather than parsing SQL. That is a deliberate
+ * It recognises siddy's journal statements rather than parsing SQL. That is a deliberate
  * limit: these tests prove the runner's decisions, and the SQL itself is proved against a
  * real Postgres in postgres.test.ts.
  *

@@ -40,7 +40,7 @@ function scopeFor<TDb extends DrizzleLike>(executor: TDb): Scope<TDb> {
 /**
  * Turns `('... values ($1, $2)', [a, b])` into a parameterised Drizzle SQL object.
  *
- * sowme only ever calls `execute` with its own three journal statements, so this sees
+ * siddy only ever calls `execute` with its own three journal statements, so this sees
  * a fixed set of inputs — but it binds rather than interpolates anyway, because the
  * seed names that flow through it come from your filenames.
  */

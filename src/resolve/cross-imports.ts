@@ -8,12 +8,12 @@ import type { CrossImport, ResolvedSeed } from '../types.ts';
  * {@link CrossImport} is where this lives as a concept, and where the argument for naming
  * the bindings rather than ruling on them is written down. This is the scan.
  *
- * Text, not a parse. sowme has no runtime dependencies and a parser is a large thing to
+ * Text, not a parse. siddy has no runtime dependencies and a parser is a large thing to
  * take on for a warning, so this matches import statements with a regular expression.
  * That has two consequences worth stating rather than hiding: an import inside a comment
  * or a string can be reported, and unusual formatting can be missed. Both are acceptable
  * for something that only ever prints a warning naming the file it read — and neither can
- * make sowme refuse to run or change what it does.
+ * make siddy refuse to run or change what it does.
  *
  * Type-only imports are skipped, because they are erased before anything executes and so
  * cannot apply anything twice. Seeds handed over as objects are skipped too — there is no

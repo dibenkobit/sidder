@@ -1,5 +1,5 @@
 /**
- * Every type sowme has. If a concept is not in this file, sowme does not have it.
+ * Every type siddy has. If a concept is not in this file, siddy does not have it.
  */
 
 /** One row of a raw SQL result. Adapters normalise whatever their driver returns into this. */
@@ -19,10 +19,10 @@ export interface Scope<TDb = unknown> {
 }
 
 /**
- * The whole surface sowme needs from your database library. Two members.
+ * The whole surface siddy needs from your database library. Two members.
  *
  * Writing one by hand is about ten lines, and doing so is the recommended way to
- * understand what sowme does to your database. See README — "Write your own adapter".
+ * understand what siddy does to your database. See README — "Write your own adapter".
  */
 export interface Adapter<TDb = unknown> {
   /** The scope outside of any transaction. */
@@ -30,7 +30,7 @@ export interface Adapter<TDb = unknown> {
   /**
    * Runs `fn` in a transaction: commit when it resolves, roll back when it throws.
    *
-   * Leave the isolation level at the default. sowme decides whether a seed still needs
+   * Leave the isolation level at the default. siddy decides whether a seed still needs
    * running by re-reading its journal row inside this transaction, which is only exact
    * under read committed; at repeatable read or above the re-read is too old to see a
    * concurrent run's row and the journal write fails with a serialization error instead.
@@ -83,7 +83,7 @@ export interface Seed<TDb = unknown> {
    * Names of seeds that must have run before this one.
    *
    * This is not sort metadata — it is the replacement for importing another seed
-   * and calling it. sowme guarantees each seed runs exactly once per invocation,
+   * and calling it. siddy guarantees each seed runs exactly once per invocation,
    * so "territory must exist" no longer has to mean `import { seedTerritory }`.
    *
    * Corollary: seeds talk to each other through the database, not through memory.
@@ -107,7 +107,7 @@ export interface Seed<TDb = unknown> {
    *
    * It costs more than atomicity. Two concurrent runs are kept off the same seed by a
    * lock held for the length of its transaction, and a seed with no transaction has
-   * nowhere to hold one: sowme re-reads the journal immediately before running it, which
+   * nowhere to hold one: siddy re-reads the journal immediately before running it, which
    * catches a run that finished earlier but not one arriving at the same instant. Every
    * other seed is exclusive; this one is only careful.
    */
@@ -143,7 +143,7 @@ export interface Config<TDb = unknown> {
    */
   env?: string;
 
-  /** Journal table name. Default: `'sowme_journal'`. */
+  /** Journal table name. Default: `'siddy_journal'`. */
   journalTable?: string;
 }
 
@@ -188,13 +188,13 @@ export type SeedOutcome =
 /**
  * A seed file that imports another seed.
  *
- * `dependsOn` exists to replace exactly this. sowme guarantees each seed runs once per
+ * `dependsOn` exists to replace exactly this. siddy guarantees each seed runs once per
  * invocation, so "territory must exist first" is a declaration; importing `seedTerritory`
  * and calling it is the old way, and doing both applies territory twice — once because
- * sowme ran it, once because demo called it. The second application is silent, because
+ * siddy ran it, once because demo called it. The second application is silent, because
  * both are ordinary writes.
  *
- * So sowme reports the coupling and names what it saw. It deliberately does not decide
+ * So siddy reports the coupling and names what it saw. It deliberately does not decide
  * whether a given binding is a seed's own work or a table of constants that happens to
  * live in the same file: `import { REGIONS, seedTerritory }` is one statement carrying
  * both, and no rule over names can separate them — a seed's work is not always the
@@ -204,7 +204,7 @@ export type SeedOutcome =
  * rather than silencing it.
  *
  * A warning and nothing else. `run` and `status` both report it, and it changes neither
- * what sowme does nor what it exits with. See `findCrossImports` in `cross-imports.ts`
+ * what siddy does nor what it exits with. See `findCrossImports` in `cross-imports.ts`
  * for how the finding is made, and what a text scan can and cannot see.
  */
 export interface CrossImport {
@@ -242,11 +242,11 @@ export type RunEvent =
    * Chronologically it belongs between `start` and whichever outcome the seed turns out
    * to have; it is last in this union only so that appending it changed nothing above it.
    *
-   * Emitted once the database has refused sowme the seed's lock, never merely because one
+   * Emitted once the database has refused siddy the seed's lock, never merely because one
    * is about to be asked for — `tryLockSeed` explains why that distinction is the whole
    * point of the event. It needs no response: the wait ends when the other run commits or
    * rolls back, and this run carries on by itself. A seed with `transaction: false` holds
-   * no lock and so never reports this, which is a gap `sowme status` states rather than
+   * no lock and so never reports this, which is a gap `siddy status` states rather than
    * papers over.
    */
   | { type: 'waiting'; name: string };

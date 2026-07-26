@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { ModuleResolutionError, ModuleSyntaxError, SowmeError } from '../../src/errors.ts';
+import { ModuleResolutionError, ModuleSyntaxError, SiddyError } from '../../src/errors.ts';
 import { importModule } from '../../src/resolve/load-module.ts';
 
 /**
@@ -13,7 +13,7 @@ import { importModule } from '../../src/resolve/load-module.ts';
 let dir: string;
 
 beforeAll(() => {
-  dir = mkdtempSync(join(tmpdir(), 'sowme-load-'));
+  dir = mkdtempSync(join(tmpdir(), 'siddy-load-'));
 });
 afterAll(() => {
   rmSync(dir, { recursive: true, force: true });
@@ -40,7 +40,7 @@ describe('importModule', () => {
     });
   });
 
-  test('the file with the bad import is named, not the file sowme asked for', async () => {
+  test('the file with the bad import is named, not the file siddy asked for', async () => {
     write('inner/schema.ts', `export { tables } from './tables.ts';\n`);
     const file = write('config-b.ts', `export { tables } from './inner/schema.ts';\n`);
 
@@ -49,7 +49,7 @@ describe('importModule', () => {
     await attempt.catch((error: ModuleResolutionError) => {
       expect(error.message).toContain('schema.ts');
       expect(error.message).toContain('./tables.ts');
-      // The file sowme asked for is still on screen, demoted.
+      // The file siddy asked for is still on screen, demoted.
       expect(error.hint).toContain('Reached while importing');
       expect(error.hint).toContain('config-b.ts');
     });
@@ -61,9 +61,9 @@ describe('importModule', () => {
     // What is under test is the mapping from code to error; Node's own wording for both is
     // pinned below, and both were walked through the CLI under Node.
     const file = write(
-      'sowme.config.js',
+      'siddy.config.js',
       `throw Object.assign(
-         new Error("Cannot find module './src/db/index.js'\\nRequire stack:\\n- ${dir}/sowme.config.js"),
+         new Error("Cannot find module './src/db/index.js'\\nRequire stack:\\n- ${dir}/siddy.config.js"),
          { code: 'MODULE_NOT_FOUND' },
        );\n`,
     );
@@ -92,7 +92,7 @@ describe('importModule', () => {
     const attempt = importModule(file);
 
     await expect(attempt).rejects.toThrow('DATABASE_URL is not set');
-    await expect(attempt).rejects.not.toBeInstanceOf(SowmeError);
+    await expect(attempt).rejects.not.toBeInstanceOf(SiddyError);
   });
 });
 
@@ -108,20 +108,20 @@ const raise = (message: string) => new Error(message);
 describe('ModuleResolutionError from a Node ESM failure', () => {
   test('names the specifier and the importer, both relative to the project', () => {
     const error = new ModuleResolutionError(
-      project('sowme.config.ts'),
+      project('siddy.config.ts'),
       raise(
-        `Cannot find module '${project('src/db/index.ts')}' imported from ${project('sowme.config.ts')}`,
+        `Cannot find module '${project('src/db/index.ts')}' imported from ${project('siddy.config.ts')}`,
       ),
     );
 
-    expect(error.message).toBe('Could not resolve "src/db/index.ts" — imported by sowme.config.ts');
+    expect(error.message).toBe('Could not resolve "src/db/index.ts" — imported by siddy.config.ts');
   });
 
   test("the config's own db import gets told about the placeholder", () => {
     const error = new ModuleResolutionError(
-      project('sowme.config.ts'),
+      project('siddy.config.ts'),
       raise(
-        `Cannot find module '${project('src/db/index.ts')}' imported from ${project('sowme.config.ts')}`,
+        `Cannot find module '${project('src/db/index.ts')}' imported from ${project('siddy.config.ts')}`,
       ),
     );
 
@@ -164,13 +164,13 @@ describe('ModuleResolutionError from a Node ESM failure', () => {
 
   test('a directory import is told it is a directory, and which file to name', () => {
     const error = new ModuleResolutionError(
-      project('sowme.config.ts'),
+      project('siddy.config.ts'),
       raise(
-        `Directory import '${project('src/db')}' is not supported resolving ES modules imported from ${project('sowme.config.ts')}`,
+        `Directory import '${project('src/db')}' is not supported resolving ES modules imported from ${project('siddy.config.ts')}`,
       ),
     );
 
-    expect(error.message).toBe('Could not resolve "src/db" — imported by sowme.config.ts');
+    expect(error.message).toBe('Could not resolve "src/db" — imported by siddy.config.ts');
     expect(error.hint).toContain('is a directory');
     expect(error.hint).toContain('src/db/index.ts');
   });
@@ -179,69 +179,69 @@ describe('ModuleResolutionError from a Node ESM failure', () => {
 describe('ModuleResolutionError from the other loaders', () => {
   test("Bun's wording, which keeps the specifier as written", () => {
     const error = new ModuleResolutionError(
-      project('sowme.config.ts'),
-      raise(`Cannot find module './src/db/index.ts' from '${project('sowme.config.ts')}'`),
+      project('siddy.config.ts'),
+      raise(`Cannot find module './src/db/index.ts' from '${project('siddy.config.ts')}'`),
     );
 
     expect(error.message).toBe(
-      'Could not resolve "./src/db/index.ts" — imported by sowme.config.ts',
+      'Could not resolve "./src/db/index.ts" — imported by siddy.config.ts',
     );
     expect(error.hint).toContain('placeholder');
   });
 
   test("Bun's ResolveMessage is not an Error, and is read anyway", () => {
     const notAnError = {
-      message: `Cannot find module './src/db/index.ts' from '${project('sowme.config.ts')}'`,
+      message: `Cannot find module './src/db/index.ts' from '${project('siddy.config.ts')}'`,
       code: 'ERR_MODULE_NOT_FOUND',
     };
 
-    const error = new ModuleResolutionError(project('sowme.config.ts'), notAnError);
+    const error = new ModuleResolutionError(project('siddy.config.ts'), notAnError);
 
     expect(error.message).toBe(
-      'Could not resolve "./src/db/index.ts" — imported by sowme.config.ts',
+      'Could not resolve "./src/db/index.ts" — imported by siddy.config.ts',
     );
   });
 
   test('a CommonJS require() names the importer from the require stack', () => {
     const error = new ModuleResolutionError(
-      project('sowme.config.js'),
+      project('siddy.config.js'),
       raise(
-        `Cannot find module './src/db/index.js'\nRequire stack:\n- ${project('sowme.config.js')}`,
+        `Cannot find module './src/db/index.js'\nRequire stack:\n- ${project('siddy.config.js')}`,
       ),
     );
 
     expect(error.message).toBe(
-      'Could not resolve "./src/db/index.js" — imported by sowme.config.js',
+      'Could not resolve "./src/db/index.js" — imported by siddy.config.js',
     );
     expect(error.hint).toContain('placeholder');
   });
 });
 
 describe('ModuleResolutionError when the message is not one it knows', () => {
-  test('falls back to the file sowme asked for, and quotes the runtime', () => {
+  test('falls back to the file siddy asked for, and quotes the runtime', () => {
     const error = new ModuleResolutionError(
-      project('sowme.config.ts'),
+      project('siddy.config.ts'),
       raise('the resolver has been rewritten and says something else entirely'),
     );
 
-    expect(error.message).toBe('Could not resolve a module imported by sowme.config.ts');
+    expect(error.message).toBe('Could not resolve a module imported by siddy.config.ts');
     expect(error.hint).toContain('the resolver has been rewritten');
   });
 
   test('an importer it cannot find is a fallback too, rather than half a hint', () => {
     const error = new ModuleResolutionError(
-      project('sowme.config.ts'),
+      project('siddy.config.ts'),
       raise(`Cannot find module '${project('src/db/index.ts')}'`),
     );
 
-    expect(error.message).toBe('Could not resolve a module imported by sowme.config.ts');
+    expect(error.message).toBe('Could not resolve a module imported by siddy.config.ts');
     expect(error.hint).toContain('Cannot find module');
   });
 
   test('something thrown that is not an error at all still produces a hint', () => {
-    const error = new ModuleResolutionError(project('sowme.config.ts'), 'nope');
+    const error = new ModuleResolutionError(project('siddy.config.ts'), 'nope');
 
-    expect(error.message).toBe('Could not resolve a module imported by sowme.config.ts');
+    expect(error.message).toBe('Could not resolve a module imported by siddy.config.ts');
     expect(error.hint).toContain('nope');
   });
 });

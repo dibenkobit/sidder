@@ -23,8 +23,8 @@ export interface PlanInput {
  * it" — so selection is checked first and everything that survives it gets a real reason.
  *
  * `force` sits below `environments` for the same reason: the two gates above it are
- * things you said, and force is only an answer to the journal, which is something sowme
- * observed. It overrules what sowme remembers, never what you declared.
+ * things you said, and force is only an answer to the journal, which is something siddy
+ * observed. It overrules what siddy remembers, never what you declared.
  */
 export function decide<TDb>(seed: ResolvedSeed<TDb>, input: PlanInput): Decision {
   if (input.only !== null && !input.only.has(seed.name)) {
@@ -76,7 +76,7 @@ export function decideFromJournal<TDb>(
  * deliberate: `environments` is a gate you wrote into the file, so a dev-only seed
  * genuinely does not exist in production and depending on it there is your decision.
  * `--only` is a thing you typed thirty seconds ago, and forgetting a name in it is a
- * mistake worth stopping for. sowme does not quietly widen your selection to fix it.
+ * mistake worth stopping for. siddy does not quietly widen your selection to fix it.
  */
 export function assertSelectionIsRunnable<TDb>(
   seeds: readonly ResolvedSeed<TDb>[],

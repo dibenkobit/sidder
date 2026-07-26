@@ -24,16 +24,16 @@ import type { Config, RunEvent, Scope, Seed } from '../src/types.ts';
  * share one pool across every case and close it once at the end.
  */
 
-const url = process.env['SOWME_TEST_DATABASE_URL'];
+const url = process.env['SIDDY_TEST_DATABASE_URL'];
 const describeIf = url ? describe : describe.skip;
 
 if (!url) {
-  console.log('postgres.test.ts skipped — set SOWME_TEST_DATABASE_URL to run it');
+  console.log('postgres.test.ts skipped — set SIDDY_TEST_DATABASE_URL to run it');
 }
 
 describeIf('against a real Postgres', () => {
   const pool = new Pool({ connectionString: url });
-  const JOURNAL = 'sowme_test_journal';
+  const JOURNAL = 'siddy_test_journal';
 
   afterAll(async () => {
     await pool.query(`drop table if exists ${JOURNAL}`);
@@ -191,7 +191,7 @@ describeIf('against a real Postgres', () => {
     });
 
     /**
-     * Two `sowme run` at once — two replicas in a deploy, two jobs in one pipeline.
+     * Two `siddy run` at once — two replicas in a deploy, two jobs in one pipeline.
      *
      * The dangerous window is between reading the journal and committing the seed: both
      * runs read an empty journal, both decide to run, and the second one's `on conflict
@@ -432,7 +432,7 @@ describeIf('against a real Postgres', () => {
   });
 
   /**
-   * `journalTable` pointed at a table sowme did not create.
+   * `journalTable` pointed at a table siddy did not create.
    *
    * Only a real database can prove this one: it turns on `create table if not exists`
    * finding somebody else's table and saying nothing, and on what Postgres does with a
@@ -459,14 +459,14 @@ describeIf('against a real Postgres', () => {
 
       expect(error).toBeInstanceOf(JournalTableMismatchError);
       const { message, hint } = error as JournalTableMismatchError;
-      expect(message).toBe(`Table "${JOURNAL}" exists but is not sowme's journal`);
+      expect(message).toBe(`Table "${JOURNAL}" exists but is not siddy's journal`);
       expect(hint).toContain('It has id, label.');
       expect(hint).toContain('A journal has name, applied_at, environment, duration_ms.');
       expect(hint).toContain('`journalTable`');
     });
 
     test('a schema-qualified name is diagnosed too', async () => {
-      // `assertSafeTableName` allows `public.sowme_journal`, so the introspection has to
+      // `assertSafeTableName` allows `public.siddy_journal`, so the introspection has to
       // survive the qualified form rather than assuming a bare one.
       await pool.query(`create table ${JOURNAL} (id serial primary key)`);
 
@@ -496,16 +496,16 @@ describeIf('against a real Postgres', () => {
     test('describes the table the read reached, which search_path may have chosen', async () => {
       // A bare name is resolved by Postgres, and not necessarily to `public`. So the
       // diagnosis is resolved the same way — `to_regclass` on the name as configured.
-      // Here the name resolves to the wrong-shaped table in `sowme_alt` while a perfectly
+      // Here the name resolves to the wrong-shaped table in `siddy_alt` while a perfectly
       // good journal of the same name sits in `public`: an introspection that assumed
       // `public` would find four valid columns and report nothing at all.
       const client = await pool.connect();
 
       try {
-        await client.query('create schema sowme_alt');
-        await client.query(`create table sowme_alt.${JOURNAL} (id serial primary key)`);
+        await client.query('create schema siddy_alt');
+        await client.query(`create table siddy_alt.${JOURNAL} (id serial primary key)`);
         await ensureJournal(adapter.root, `public.${JOURNAL}`);
-        await client.query('set search_path to sowme_alt, public');
+        await client.query('set search_path to siddy_alt, public');
 
         // The same scope the adapter builds, over one connection instead of the pool, so
         // that `set search_path` applies to the statements under test.
@@ -522,7 +522,7 @@ describeIf('against a real Postgres', () => {
       } finally {
         // The connection goes back to the pool, so the search_path has to go back with it.
         await client.query('reset search_path');
-        await client.query('drop schema sowme_alt cascade');
+        await client.query('drop schema siddy_alt cascade');
         client.release();
       }
     });

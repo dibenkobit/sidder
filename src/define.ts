@@ -4,7 +4,7 @@ import type { Config, Seed } from './types.ts';
  * Identity function. It exists only so TypeScript can infer the shape of what you wrote.
  *
  * `defineSeed(x)` returns `x`. It registers nothing, wraps nothing, and has no side
- * effects — you can delete the call and add `satisfies Seed` instead and sowme will
+ * effects — you can delete the call and add `satisfies Seed` instead and siddy will
  * behave identically. It is here because autocomplete on the fields is worth one import,
  * and because a typo in a field name should be a compile error rather than silence.
  */

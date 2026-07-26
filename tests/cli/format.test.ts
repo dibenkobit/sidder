@@ -65,7 +65,7 @@ function seed(name: string, extra: Partial<SeedStatus> = {}): SeedStatus {
 function inspection(seeds: SeedStatus[], extra: Partial<Inspection> = {}): Inspection {
   return {
     env: 'development',
-    journalTable: 'sowme_journal',
+    journalTable: 'siddy_journal',
     sources: { env: 'default', seeds: 'config', journalTable: 'default' },
     order: seeds.map((each) => each.name),
     seeds,
@@ -214,7 +214,7 @@ describe('formatStatus', () => {
 
     expect(prose).toContain('no transaction means more than lost atomicity');
     // The half the two-word note never said: no transaction is no lock either, so the one
-    // seed sowme cannot keep a concurrent run out of is the one that says `no transaction`.
+    // seed siddy cannot keep a concurrent run out of is the one that says `no transaction`.
     expect(prose).toContain('nothing keeps a second run off it');
     expect(prose).toContain('Set `transaction: true` if either matters.');
   });
@@ -276,7 +276,7 @@ describe('formatCrossImports', () => {
   test('does not claim to know which bindings are data and which are work', () => {
     const block = plain(formatCrossImports([territory]) ?? '');
 
-    expect(block).toContain('sowme does not decide');
+    expect(block).toContain('siddy does not decide');
     expect(block).toContain('imported from a seed and called');
   });
 
@@ -329,15 +329,15 @@ describe('formatNothingApplied', () => {
     const block = explain([alreadyApplied('demo'), notSelected('roles')], { only: ['demo'] });
 
     expect(block).toContain('nothing ran — every seed you selected is already in the journal');
-    expect(block).toContain('sowme run --only demo --force');
-    expect(block).toContain('sowme forget demo');
+    expect(block).toContain('siddy run --only demo --force');
+    expect(block).toContain('siddy forget demo');
   });
 
   test('says so when nothing --only named is a seed at all', () => {
     const block = explain([notSelected('roles'), notSelected('demo')], { only: ['dem0'] });
 
     expect(block).toContain('nothing ran — no seed is named "dem0"');
-    expect(block).toContain('sowme status');
+    expect(block).toContain('siddy status');
   });
 
   test('names each name when several of them matched nothing', () => {
@@ -405,7 +405,7 @@ describe('formatNothingApplied', () => {
   test('says nobody chose one when the environment is only the default', () => {
     const block = explain([wrongEnv('demo', ['staging', 'production'])], { envSource: 'default' });
 
-    expect(block).toContain('nothing chose an environment, so sowme used development');
+    expect(block).toContain('nothing chose an environment, so siddy used development');
     expect(block).toContain('pass --env or set NODE_ENV');
   });
 });

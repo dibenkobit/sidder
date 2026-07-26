@@ -22,7 +22,7 @@ async function seedFile(basename: string, source: string): Promise<ResolvedSeed>
 const inline = (name: string): ResolvedSeed => ({ name, file: '<inline>', run: async () => {} });
 
 beforeAll(async () => {
-  dir = await mkdtemp(join(tmpdir(), 'sowme-cross-'));
+  dir = await mkdtemp(join(tmpdir(), 'siddy-cross-'));
 });
 
 afterAll(async () => {

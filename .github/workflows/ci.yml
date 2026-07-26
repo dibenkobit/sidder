@@ -25,12 +25,12 @@ jobs:
       postgres:
         image: postgres:18
         env:
-          POSTGRES_USER: sowme
-          POSTGRES_PASSWORD: sowme
-          POSTGRES_DB: sowme
+          POSTGRES_USER: siddy
+          POSTGRES_PASSWORD: siddy
+          POSTGRES_DB: siddy
         ports: ['55432:5432']
         options: >-
-          --health-cmd "pg_isready -U sowme"
+          --health-cmd "pg_isready -U siddy"
           --health-interval 1s
           --health-timeout 3s
           --health-retries 30
@@ -78,13 +78,13 @@ jobs:
         run: |
           mkdir /tmp/app && cd /tmp/app
           npm init -y >/dev/null
-          npm install /tmp/sowme-*.tgz
+          npm install /tmp/siddy-*.tgz
 
       # No database needed: this exercises the bin shim, the shebang, the exports map
       # and the TypeScript loader — every way the published layout can be wrong.
       - name: the CLI runs on Node ${{ matrix.node }}
         working-directory: /tmp/app
         run: |
-          ./node_modules/.bin/sowme --version
-          ./node_modules/.bin/sowme init
-          test -f sowme.config.ts
+          ./node_modules/.bin/siddy --version
+          ./node_modules/.bin/siddy init
+          test -f siddy.config.ts
